@@ -1,0 +1,1791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Murphy Builders — Construction Cost Escalation Monitor</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --black:#0a0a0a;--dark:#111111;--dark2:#1a1a1a;
+  --cyan:#00b4d8;--cyan-lt:#90e0ef;--cyan-bg:#e0f7fa;
+  --white:#ffffff;
+  --grey-50:#f8fafc;--grey-100:#f1f5f9;--grey-200:#e2e8f0;
+  --grey-500:#64748b;--grey-700:#334155;--grey-800:#1e293b;
+  --red:#dc2626;--red-lt:#fef2f2;
+  --orange:#ea580c;--orange-lt:#fff7ed;
+  --amber:#f59e0b;--amber-lt:#fef3c7;
+  --green:#16a34a;--green-lt:#dcfce7;
+  --yellow-lt:#fefce8;--yellow-txt:#854d0e;
+  --purple:#7c3aed;--purple-lt:#f5f3ff;
+  --shadow:0 2px 12px rgba(0,0,0,0.10);
+  --shadow-lg:0 8px 32px rgba(0,0,0,0.18);
+  --radius:10px
+}
+html{scroll-behavior:smooth}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#f0f4f8;color:var(--grey-800);font-size:14px;line-height:1.6}
+
+/* TOPBAR */
+.topbar{background:var(--black);color:var(--white);padding:0 28px;display:flex;align-items:center;justify-content:space-between;height:66px;position:sticky;top:0;z-index:300;box-shadow:0 4px 20px rgba(0,0,0,0.4);border-bottom:2px solid var(--cyan)}
+.topbar-left{display:flex;align-items:center;gap:14px}
+.logo-m{width:42px;height:42px;background:var(--cyan);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:var(--black)}
+.logo-main{font-size:19px;font-weight:800;color:var(--white);letter-spacing:.5px}
+.logo-sub{font-size:10px;color:var(--cyan);letter-spacing:2px;text-transform:uppercase}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.status-pill{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:5px 14px;font-size:12px;color:rgba(255,255,255,0.8)}
+.dot{width:8px;height:8px;border-radius:50%;background:#4ade80;animation:pulse 2s infinite}
+.dot.loading{background:var(--amber)}.dot.error{background:#f87171;animation:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.refresh-btn{background:var(--cyan);color:var(--black);border:none;border-radius:8px;padding:8px 16px;font-size:12px;font-weight:700;cursor:pointer;transition:all .2s}
+.refresh-btn:hover{background:var(--cyan-lt)}
+
+/* HERO BAND */
+.hero-band{background:var(--dark2);border-bottom:1px solid rgba(0,180,216,0.25);padding:8px 28px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.hero-stats{display:flex;align-items:center;flex-wrap:wrap}
+.hero-stat{padding:4px 16px;border-right:1px solid rgba(255,255,255,0.1);display:flex;flex-direction:column;align-items:center}
+.hero-stat:last-child{border-right:none}
+.hs-val{font-size:15px;font-weight:800;color:var(--cyan)}
+.hs-lbl{font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.8px}
+.hero-date{font-size:11px;color:rgba(255,255,255,0.4)}
+
+/* NAV */
+.nav-bar{background:var(--dark);border-bottom:1px solid rgba(255,255,255,0.08);padding:0 16px;display:flex;overflow-x:auto}
+.nav-btn{background:none;border:none;border-bottom:3px solid transparent;padding:12px 14px;font-size:12px;font-weight:600;color:rgba(255,255,255,0.5);cursor:pointer;white-space:nowrap;transition:all .2s}
+.nav-btn:hover{color:rgba(255,255,255,0.85)}
+.nav-btn.active{color:var(--white);border-bottom-color:var(--cyan)}
+
+/* MAIN */
+.main{max-width:1400px;margin:0 auto;padding:24px 24px 80px}
+.page{display:none}.page.active{display:block}
+.src-line{font-size:11px;color:var(--grey-500);text-align:right;margin-bottom:14px}
+
+/* ALERTS */
+.alert{border-radius:var(--radius);padding:14px 18px;margin-bottom:22px;display:flex;align-items:flex-start;gap:12px;font-size:13px;box-shadow:var(--shadow)}
+.alert.amber{background:linear-gradient(135deg,#d97706,#f59e0b);color:var(--dark)}
+.alert.red{background:linear-gradient(135deg,#b91c1c,#dc2626);color:white}
+.alert.green{background:linear-gradient(135deg,#15803d,#16a34a);color:white}
+.alert.blue{background:linear-gradient(135deg,#1d4ed8,#3b82f6);color:white}
+.alert.purple{background:linear-gradient(135deg,#6d28d9,#7c3aed);color:white}
+.alert-ico{font-size:22px;flex-shrink:0}
+.a-title{font-weight:700;margin-bottom:2px}
+.a-sub{font-weight:400;font-size:12px;opacity:.9}
+
+/* KPI */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:14px;margin-bottom:22px}
+.kpi{background:var(--white);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow);border-top:4px solid var(--cyan)}
+.kpi.red{border-top-color:var(--red)}.kpi.amber{border-top-color:var(--amber)}.kpi.green{border-top-color:var(--green)}.kpi.orange{border-top-color:var(--orange)}.kpi.purple{border-top-color:var(--purple)}
+.kpi-lbl{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--grey-500);font-weight:600;margin-bottom:5px}
+.kpi-val{font-size:24px;font-weight:800;color:var(--dark);line-height:1;margin-bottom:4px}
+.kpi-chg{font-size:12px;font-weight:600}
+.kpi-chg.up{color:var(--red)}.kpi-chg.dn{color:var(--green)}.kpi-chg.fl{color:var(--grey-500)}
+.kpi-note{font-size:11px;color:var(--grey-500);margin-top:2px}
+
+/* GRIDS */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;margin-bottom:18px}
+.g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;margin-bottom:18px}
+@media(max-width:1100px){.g4{grid-template-columns:1fr 1fr}}
+@media(max-width:960px){.g2,.g3{grid-template-columns:1fr}}
+
+/* CARDS */
+.card{background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:18px}
+.ch{padding:14px 18px 10px;border-bottom:1px solid var(--grey-200);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;background:linear-gradient(90deg,var(--grey-50),var(--white))}
+.ct{font-size:14px;font-weight:700;color:var(--dark);display:flex;align-items:center;gap:7px}
+.cb{font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:var(--cyan-bg);color:#0077b6}
+.cb.purple{background:var(--purple-lt);color:var(--purple)}
+.cb.green{background:var(--green-lt);color:var(--green)}
+.cb.amber{background:var(--amber-lt);color:#92400e}
+.card-body{padding:18px}
+.cw{position:relative;height:270px}.cw.tall{height:350px}.cw.short{height:200px}.cw.xshort{height:160px}
+.cn{font-size:11px;color:var(--grey-500);margin-top:8px;padding-top:8px;border-top:1px solid var(--grey-200)}
+
+/* RISK BADGES */
+.rb{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;white-space:nowrap}
+.rb.vh{background:var(--red-lt);color:var(--red)}.rb.hi{background:var(--orange-lt);color:var(--orange)}
+.rb.mh{background:var(--amber-lt);color:#92400e}.rb.md{background:var(--yellow-lt);color:var(--yellow-txt)}
+.rb.lm{background:var(--green-lt);color:var(--green)}.rb.lo{background:#dcfce7;color:var(--green)}
+
+/* SIGNAL METERS */
+.sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:700px){.sig-grid{grid-template-columns:1fr}}
+.sig{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:8px;border:1px solid}
+.sig-ico{font-size:22px;flex-shrink:0}
+.sig-lbl{font-weight:700;font-size:13px;color:var(--dark)}
+.sig-val{font-size:11px;color:var(--grey-500);margin-top:1px;line-height:1.4}
+.sig-r{margin-left:auto;flex-shrink:0}
+
+/* TABLES */
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{background:var(--dark);color:white;padding:10px 12px;text-align:left;font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase}
+.tbl td{padding:9px 12px;border-bottom:1px solid var(--grey-200);vertical-align:middle}
+.tbl tr:nth-child(even) td{background:var(--grey-50)}
+.tbl tr:hover td{background:var(--cyan-bg)}
+.tbl .b{font-weight:700;color:var(--dark)}
+.tbl .avg td{background:var(--grey-100)!important;font-weight:700;border-top:2px solid var(--cyan)}
+.tbl-wrap{overflow-x:auto;border-radius:var(--radius);border:1px solid var(--grey-200)}
+
+/* BAR CELLS */
+.bw{display:flex;align-items:center;gap:6px}
+.bt{flex:1;height:7px;background:var(--grey-200);border-radius:4px;overflow:hidden;min-width:50px}
+.bf{height:100%;border-radius:4px}
+.bl{font-size:12px;font-weight:700;min-width:44px}
+
+/* REC CARDS */
+.rec-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin-bottom:22px}
+.rc{border-radius:var(--radius);padding:18px;border:1px solid}
+.rc.urgent{background:#fef2f2;border-color:#fca5a5}
+.rc.caution{background:#fff7ed;border-color:#fdba74}
+.rc.watch{background:#fefce8;border-color:#fde047}
+.rc.ok{background:#f0fdf4;border-color:#86efac}
+.rc-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.rc-ico{font-size:22px}
+.rc-title{font-size:13px;font-weight:700}
+.rc.urgent .rc-title{color:var(--red)}.rc.caution .rc-title{color:var(--orange)}.rc.watch .rc-title{color:var(--yellow-txt)}.rc.ok .rc-title{color:var(--green)}
+.rc-pct{font-size:30px;font-weight:900;line-height:1;margin:6px 0 2px}
+.rc.urgent .rc-pct{color:var(--red)}.rc.caution .rc-pct{color:var(--orange)}.rc.watch .rc-pct{color:var(--yellow-txt)}.rc.ok .rc-pct{color:var(--green)}
+.rc-sub{font-size:11px;font-weight:600;margin-bottom:8px;opacity:.75}
+.rc-desc{font-size:12px;color:#444;line-height:1.6}
+.rc-trades{margin-top:10px;padding-top:8px;border-top:1px solid rgba(0,0,0,0.08);font-size:11px;color:var(--grey-500)}
+.rc-trades strong{color:var(--grey-700)}
+
+/* PROJECT CALCULATOR */
+.calc-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:760px){.calc-grid{grid-template-columns:1fr}}
+.calc-form{display:flex;flex-direction:column;gap:14px}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-label{font-size:12px;font-weight:600;color:var(--grey-700);text-transform:uppercase;letter-spacing:.5px}
+.form-input,.form-select{border:1px solid var(--grey-200);border-radius:8px;padding:10px 14px;font-size:14px;color:var(--dark);background:var(--white);transition:border .2s;font-family:inherit;width:100%}
+.form-input:focus,.form-select:focus{outline:none;border-color:var(--cyan);box-shadow:0 0 0 3px rgba(0,180,216,0.1)}
+.form-hint{font-size:11px;color:var(--grey-500)}
+.calc-btn{background:linear-gradient(135deg,var(--dark),var(--cyan));color:white;border:none;border-radius:8px;padding:12px 24px;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s;letter-spacing:.3px}
+.calc-btn:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.calc-results{background:var(--grey-50);border-radius:var(--radius);padding:20px;border:1px solid var(--grey-200)}
+.calc-results.active{background:linear-gradient(135deg,var(--dark2),#1e3a5c);color:white;border-color:var(--cyan)}
+.result-title{font-size:13px;font-weight:600;margin-bottom:14px;opacity:.8}
+.result-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.1)}
+.result-row:last-child{border-bottom:none}
+.result-label{font-size:13px;opacity:.8}
+.result-value{font-size:18px;font-weight:800;color:var(--cyan)}
+.result-value.big{font-size:28px}
+.result-value.warn{color:var(--amber)}
+.result-value.danger{color:#f87171}
+.result-placeholder{text-align:center;padding:30px;color:var(--grey-500);font-size:13px}
+
+/* TENDER TRACKER */
+.tracker-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px;padding:16px;background:var(--grey-50);border-radius:var(--radius);border:1px solid var(--grey-200)}
+.tracker-table-wrap{overflow-x:auto}
+.add-btn{background:var(--cyan);color:var(--black);border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;align-self:end}
+.add-btn:hover{background:var(--cyan-lt)}
+.del-btn{background:var(--red-lt);color:var(--red);border:1px solid #fca5a5;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer}
+.del-btn:hover{background:var(--red);color:white}
+.variance-pos{color:var(--red);font-weight:700}
+.variance-neg{color:var(--green);font-weight:700}
+.variance-zero{color:var(--grey-500)}
+
+/* PEXA MANUAL INPUT */
+.manual-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;padding:16px;background:var(--grey-50);border-radius:var(--radius);border:1px solid var(--grey-200);margin-bottom:16px}
+.save-btn{background:var(--green);color:white;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;transition:all .2s}
+.save-btn:hover{background:#15803d}
+
+/* PIPELINE INDICATOR */
+.pipeline{display:flex;flex-direction:column;gap:0}
+.pl-item{display:flex;align-items:center;gap:14px;padding:12px 16px;border-left:3px solid var(--grey-200);position:relative;margin-left:20px}
+.pl-item::before{content:'';position:absolute;left:-8px;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;border:2px solid white}
+.pl-item.t1::before{background:var(--purple);border-color:var(--purple-lt)}.pl-item.t1{border-left-color:var(--purple)}
+.pl-item.t2::before{background:var(--red);border-color:var(--red-lt)}.pl-item.t2{border-left-color:var(--red)}
+.pl-item.t3::before{background:var(--amber);border-color:var(--amber-lt)}.pl-item.t3{border-left-color:var(--amber)}
+.pl-item.t4::before{background:var(--cyan);border-color:var(--cyan-bg)}.pl-item.t4{border-left-color:var(--cyan)}
+.pl-item.t5::before{background:var(--green);border-color:var(--green-lt)}.pl-item.t5{border-left-color:var(--green)}
+.pl-ico{font-size:20px;flex-shrink:0;width:32px;text-align:center}
+.pl-title{font-weight:700;font-size:13px;color:var(--dark)}
+.pl-sub{font-size:11px;color:var(--grey-500)}
+.pl-right{margin-left:auto;text-align:right;flex-shrink:0}
+.pl-lead{font-size:11px;font-weight:700;color:var(--grey-700)}
+
+/* INFO / WARN BLOCKS */
+.info{background:var(--cyan-bg);border-left:4px solid var(--cyan);border-radius:0 8px 8px 0;padding:12px 16px;margin-bottom:14px;font-size:13px}
+.info h4{font-weight:700;color:var(--dark);margin-bottom:3px}
+.info p,.info ul{color:var(--grey-700);line-height:1.7}
+.info ul{padding-left:16px}
+.warn{background:var(--amber-lt);border-left:4px solid var(--amber);border-radius:0 8px 8px 0;padding:12px 16px;margin-bottom:14px;font-size:13px}
+.warn h4{font-weight:700;color:#92400e;margin-bottom:3px}
+.warn p{color:#78350f;line-height:1.7}
+
+/* SECTION TITLES */
+.pg-title{font-size:21px;font-weight:800;color:var(--dark);margin-bottom:3px}
+.pg-sub{font-size:13px;color:var(--grey-500);margin-bottom:22px}
+.sec-title{font-size:16px;font-weight:700;color:var(--dark);margin:20px 0 12px;padding-bottom:6px;border-bottom:2px solid var(--cyan)}
+.divider{height:1px;background:var(--grey-200);margin:20px 0}
+
+/* EMAIL ALERT FORM */
+.alert-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;padding:16px;background:var(--grey-50);border-radius:var(--radius);border:1px solid var(--grey-200);margin-bottom:16px}
+.threshold-row{display:flex;align-items:center;gap:10px;padding:10px;background:white;border-radius:8px;border:1px solid var(--grey-200)}
+.threshold-label{flex:1;font-size:13px;font-weight:600;color:var(--dark)}
+.threshold-input{width:80px;border:1px solid var(--grey-200);border-radius:6px;padding:6px 10px;font-size:13px;text-align:center}
+.threshold-unit{font-size:12px;color:var(--grey-500);white-space:nowrap}
+
+/* FOOTER */
+.footer{background:var(--black);color:rgba(255,255,255,0.5);text-align:center;font-size:11px;padding:20px 28px;border-top:2px solid var(--cyan);margin-top:40px}
+.footer strong{color:var(--cyan)}
+
+/* PRINT STYLES */
+@media print{
+  .topbar,.nav-bar,.hero-band,.refresh-btn{display:none!important}
+  .page{display:block!important}
+  .card{break-inside:avoid;box-shadow:none;border:1px solid var(--grey-200)}
+  body{background:white}
+}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="logo-m">M</div>
+    <div>
+      <div class="logo-main">Murphy Builders</div>
+      <div class="logo-sub">Cost Escalation Monitor v2.0</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="status-pill">
+      <div class="dot loading" id="statusDot"></div>
+      <span id="statusText">Loading…</span>
+    </div>
+    <button class="refresh-btn" onclick="refreshAll()">↻ Refresh</button>
+  </div>
+</header>
+
+<!-- HERO BAND -->
+<div class="hero-band">
+  <div class="hero-stats">
+    <div class="hero-stat"><span class="hs-val" id="hHouses">9,474</span><span class="hs-lbl">House Approvals</span></div>
+    <div class="hero-stat"><span class="hs-val" id="hApts">6,719</span><span class="hs-lbl">Apt Approvals</span></div>
+    <div class="hero-stat"><span class="hs-val" id="hLoans">+8.2%</span><span class="hs-lbl">Construction Loans</span></div>
+    <div class="hero-stat"><span class="hs-val" id="hCommence">12,841</span><span class="hs-lbl">Commencements</span></div>
+    <div class="hero-stat"><span class="hs-val" id="hInput">+2.4%</span><span class="hs-lbl">Input Cost Δ</span></div>
+    <div class="hero-stat"><span class="hs-val" id="hOutput">+3.1%</span><span class="hs-lbl">Output Cost Δ</span></div>
+    <div class="hero-stat"><span class="hs-val" style="color:var(--amber)">⚠ Caution</span><span class="hs-lbl">Forward Signal</span></div>
+  </div>
+  <div class="hero-date" id="heroDate">—</div>
+</div>
+
+<!-- NAV -->
+<nav class="nav-bar" id="mainNav">
+  <button class="nav-btn active" data-page="dashboard">📊 Dashboard</button>
+  <button class="nav-btn" data-page="pipeline">🔭 Pipeline Indicators</button>
+  <button class="nav-btn" data-page="lead">📡 Lead Indicators</button>
+  <button class="nav-btn" data-page="costs">💰 Cost Indexes</button>
+  <button class="nav-btn" data-page="ppi">🧱 Material Prices</button>
+  <button class="nav-btn" data-page="recommendations">🎯 Escalation Recs</button>
+  <button class="nav-btn" data-page="calculator">🧮 Project Calculator</button>
+  <button class="nav-btn" data-page="tracker">📋 Tender Tracker</button>
+  <button class="nav-btn" data-page="alerts">🔔 Alerts</button>
+  <button class="nav-btn" data-page="about">ℹ️ About</button>
+</nav>
+
+<main class="main">
+
+<!-- ████ DASHBOARD ████ -->
+<div class="page active" id="page-dashboard">
+  <div class="src-line">Source: ABS.Stat API · Last fetched: <span id="lastUpdated">—</span></div>
+  <div class="alert amber">
+    <div class="alert-ico">⚠️</div>
+    <div><div class="a-title">ESCALATION ALERT — Multiple Lead Indicators Signal Upward Cost Pressure Through 2026–2027</div>
+    <div class="a-sub">Apartment approvals +57% from 2024 low · Construction loans rising · Ceramic &amp; cement still accelerating · Apply minimum 3–5% p.a. for projects commencing H2 2026 onward.</div></div>
+  </div>
+  <div class="kpi-row">
+    <div class="kpi amber"><div class="kpi-lbl">House Approvals</div><div class="kpi-val">9,474</div><div class="kpi-chg up">↑ +13% from 2023 trough</div><div class="kpi-note">Dec 2025 · ABS 8731.0</div></div>
+    <div class="kpi red"><div class="kpi-lbl">Apartment Approvals</div><div class="kpi-val">6,719</div><div class="kpi-chg up">↑ +57% from Apr 2024</div><div class="kpi-note">Dec 2025 · ABS 8731.0</div></div>
+    <div class="kpi purple"><div class="kpi-lbl">Construction Loans</div><div class="kpi-val">+8.2%</div><div class="kpi-chg up">↑ Annual growth</div><div class="kpi-note">Dec 2025 · ABS 5601.0</div></div>
+    <div class="kpi"><div class="kpi-lbl">Commencements</div><div class="kpi-val">12,841</div><div class="kpi-chg up">↑ Rising</div><div class="kpi-note">Dec 2025 · ABS 8752.0</div></div>
+    <div class="kpi orange"><div class="kpi-lbl">Input Cost Δ Annual</div><div class="kpi-val">+2.4%</div><div class="kpi-chg fl">Moderating</div><div class="kpi-note">House Construction Inputs</div></div>
+    <div class="kpi orange"><div class="kpi-lbl">Output Cost Δ Annual</div><div class="kpi-val">+3.1%</div><div class="kpi-chg fl">Sticky above CPI</div><div class="kpi-note">Building Construction Output</div></div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="ch"><div class="ct">📡 Building Approvals — Lead Indicator</div><div class="cb">6–12 mth lead</div></div>
+      <div class="card-body"><div class="cw"><canvas id="c_approvals_dash"></canvas></div>
+      <p class="cn">Rising approvals precede cost escalation by 6–12 months. The 2020–21 surge directly caused the 2021–22 cost explosion. Watch the current apartment recovery closely for 2026 signals.</p></div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct">💰 Construction Cost Indexes</div><div class="cb">ABS 6427.0</div></div>
+      <div class="card-body"><div class="cw"><canvas id="c_costs_dash"></canvas></div>
+      <p class="cn">Input costs = materials &amp; labour. Output costs = what builders charge clients. Both remain elevated above pre-COVID levels.</p></div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="ch"><div class="ct">🏦 Construction Loans vs Approvals</div><div class="cb purple">NEW — ABS 5601.0</div></div>
+      <div class="card-body"><div class="cw"><canvas id="c_loans_dash"></canvas></div>
+      <p class="cn">Construction loan commitments lead building approvals by 3–6 months. Rising loans = more projects entering the pipeline soon.</p></div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct">🏗️ Construction Commencements</div><div class="cb green">NEW — ABS 8752.0</div></div>
+      <div class="card-body"><div class="cw"><canvas id="c_commence_dash"></canvas></div>
+      <p class="cn">Commencements confirm approvals are converting to active work. Rising commencements = immediate material and labour demand pressure.</p></div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="ch"><div class="ct">🔗 Lead vs Lag — Full Pipeline Correlation</div><div class="cb">Multi-indicator</div></div>
+      <div class="card-body"><div class="cw"><canvas id="c_corr_dash"></canvas></div>
+      <p class="cn">All lead indicators shifted to show relationship with subsequent cost movements. Loans lead approvals lead commencements lead costs.</p></div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct">📈 Annual Rate of Change — All Indexes</div><div class="cb">% per annum</div></div>
+      <div class="card-body"><div class="cw"><canvas id="c_annual_dash"></canvas></div>
+      <p class="cn">Annual % change across all tracked indexes. Target cost range 2–3% p.a. Output costs currently tracking above target.</p></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ch"><div class="ct">🚦 Current Market Signal Dashboard</div></div>
+    <div class="card-body">
+      <div class="sig-grid">
+        <div class="sig" style="background:#f5f3ff;border-color:#c4b5fd"><div class="sig-ico">🏦</div><div><div class="sig-lbl">Construction Loan Commitments</div><div class="sig-val">+8.2% annual growth (Dec 2025) · 12–18 month lead indicator</div></div><div class="sig-r"><span class="rb vh">🔴 Rising Fast</span></div></div>
+        <div class="sig" style="background:#fef2f2;border-color:#fca5a5"><div class="sig-ico">🏢</div><div><div class="sig-lbl">Apartment Approvals Trend</div><div class="sig-val">6,719/month (Dec 2025) · +57% from low of 4,270 (Apr 2024)</div></div><div class="sig-r"><span class="rb vh">🔴 Strong ↑</span></div></div>
+        <div class="sig" style="background:#fff7ed;border-color:#fdba74"><div class="sig-ico">🏗️</div><div><div class="sig-lbl">House Approvals Trend</div><div class="sig-val">9,474/month (Dec 2025) · Up from trough of 8,378 (2023)</div></div><div class="sig-r"><span class="rb mh">⚠ Upward</span></div></div>
+        <div class="sig" style="background:#fef2f2;border-color:#fca5a5"><div class="sig-ico">🧱</div><div><div class="sig-lbl">Ceramic &amp; Cement Products</div><div class="sig-val">PPI: +12.0% and +11.3% over 3 years · Still accelerating 2025</div></div><div class="sig-r"><span class="rb vh">🔴 Very High</span></div></div>
+        <div class="sig" style="background:#f0fdf4;border-color:#86efac"><div class="sig-ico">🔩</div><div><div class="sig-lbl">Steel Products</div><div class="sig-val">PPI: −10.7% over 3 years · Deflating but approaching floor</div></div><div class="sig-r"><span class="rb lm">🟢 Watch</span></div></div>
+        <div class="sig" style="background:#fff7ed;border-color:#fdba74"><div class="sig-ico">🏠</div><div><div class="sig-lbl">Construction Commencements</div><div class="sig-val">12,841/quarter (Dec 2025) · Confirming approvals converting to work</div></div><div class="sig-r"><span class="rb mh">⚠ Rising</span></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ████ PIPELINE INDICATORS ████ -->
+<div class="page" id="page-pipeline">
+  <div class="pg-title">🔭 Pipeline Indicators — Full Development Chain</div>
+  <div class="pg-sub">Monitor the complete development pipeline from land finance through to construction costs. Each tier provides earlier warning than the last.</div>
+
+  <div class="alert purple">
+    <div class="alert-ico">🔭</div>
+    <div><div class="a-title">NEW — Extended Lead Indicator Framework</div>
+    <div class="a-sub">Murphy Builders now tracks 4 tiers of lead indicators giving up to 18 months advance warning of cost escalation. The pipeline below shows where each indicator sits in the development chain.</div></div>
+  </div>
+
+  <div class="card">
+    <div class="ch"><div class="ct">🔗 The Full Development Pipeline — Lead Indicator Chain</div></div>
+    <div class="card-body">
+      <div class="pipeline">
+        <div class="pl-item t1">
+          <div class="pl-ico">🏦</div>
+          <div>
+            <div class="pl-title">TIER 1 — Construction Loan Commitments (ABS 5601.0)</div>
+            <div class="pl-sub">Banks approve loans for new construction · Developers commit to projects · Supply pipeline locked in</div>
+          </div>
+          <div class="pl-right"><div class="pl-lead">12–18 month lead</div><span class="rb vh">NEW ✓</span></div>
+        </div>
+        <div class="pl-item t1">
+          <div class="pl-ico">🌏</div>
+          <div>
+            <div class="pl-title">TIER 1 — PEXA Land Settlements (Manual Input)</div>
+            <div class="pl-sub">Developer purchases land · Triggers DA lodgement process · pexa.com.au/market-insights</div>
+          </div>
+          <div class="pl-right"><div class="pl-lead">12–18 month lead</div><span class="rb mh">Manual Entry</span></div>
+        </div>
+        <div class="pl-item t2">
+          <div class="pl-ico">📋</div>
+          <div>
+            <div class="pl-title">TIER 2 — DA Lodgements (State Planning Portals)</div>
+            <div class="pl-sub">Development applications lodged · Precursor to building approvals · NSW Planning Portal / QLD MyDAS2</div>
+          </div>
+          <div class="pl-right"><div class="pl-lead">9–12 month lead</div><span class="rb mh">Manual Entry</span></div>
+        </div>
+        <div class="pl-item t3">
+          <div class="pl-ico">✅</div>
+          <div>
+            <div class="pl-title">TIER 3 — Building Approvals (ABS 8731.0)</div>
+            <div class="pl-sub">DA approved · Builder engaged · Construction imminent within 6–12 months</div>
+          </div>
+          <div class="pl-right"><div class="pl-lead">6–12 month lead</div><span class="rb lo">Live ✓</span></div>
+        </div>
+        <div class="pl-item t4">
+          <div class="pl-ico">🏗️</div>
+          <div>
+            <div class="pl-title">TIER 4 — Construction Commencements (ABS 8752.0)</div>
+            <div class="pl-sub">Work has started · Immediate material and labour demand · Confirms approvals converting</div>
+          </div>
+          <div class="pl-right"><div class="pl-lead">3–6 month lead</div><span class="rb lo">NEW ✓</span></div>
+        </div>
+        <div class="pl-item t5">
+          <div class="pl-ico">💰</div>
+          <div>
+            <div class="pl-title">TIER 5 — Producer Price Index (ABS 6427.0)</div>
+            <div class="pl-sub">Material cost changes confirmed · Lagging indicator · Confirms what has already happened</div>
+          </div>
+          <div class="pl-right"><div class="pl-lead">Lagging — confirms</div><span class="rb lo">Live ✓</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec-title">📊 Tier 1 — Construction Loan Commitments (ABS 5601.0)</div>
+  <div class="kpi-row">
+    <div class="kpi purple"><div class="kpi-lbl">Annual Loan Growth</div><div class="kpi-val">+8.2%</div><div class="kpi-chg up">↑ Accelerating</div><div class="kpi-note">Dec 2025 · ABS 5601.0</div></div>
+    <div class="kpi purple"><div class="kpi-lbl">New Construction Loans</div><div class="kpi-val">$2.84B</div><div class="kpi-chg up">↑ Monthly value</div><div class="kpi-note">Dec 2025</div></div>
+    <div class="kpi purple"><div class="kpi-lbl">3-Month Trend</div><div class="kpi-val">+2.1%</div><div class="kpi-chg up">↑ Rising quarter</div><div class="kpi-note">Oct–Dec 2025</div></div>
+    <div class="kpi purple"><div class="kpi-lbl">Signal Strength</div><div class="kpi-val" style="font-size:15px;margin-top:4px">⭐⭐⭐⭐⭐</div><div class="kpi-chg up">Strong pipeline signal</div><div class="kpi-note">12–18 month lead</div></div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="ch"><div class="ct">🏦 Construction Loan Commitments — Trend</div><div class="cb purple">ABS 5601.0</div></div>
+      <div class="card-body"><div class="cw tall"><canvas id="c_loans_detail"></canvas></div>
+      <p class="cn">Monthly value of new construction loan commitments. Rising values signal increased development activity 12–18 months ahead. This is the earliest reliable indicator in our framework.</p></div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct">📈 Loans vs Approvals — Lead Confirmation</div><div class="cb purple">Offset +2 quarters</div></div>
+      <div class="card-body"><div class="cw tall"><canvas id="c_loans_vs_approvals"></canvas></div>
+      <p class="cn">Construction loans shifted forward 2 quarters to show how loan growth leads subsequent approval volumes. Strong correlation confirms predictive value.</p></div>
+    </div>
+  </div>
+
+  <div class="sec-title">🌏 Tier 1 — PEXA Land Settlements &amp; DA Lodgements (Manual Input)</div>
+  <div class="info">
+    <h4>📥 How to Update This Data</h4>
+    <p>PEXA publishes monthly market insights at <strong>pexa.com.au/market-insights</strong>. Download the latest report and enter the key figures below. State planning portals publish DA lodgement data monthly. Update this section at the start of each month.</p>
+  </div>
+  <div class="card">
+    <div class="ch"><div class="ct">✏️ Manual Data Entry — PEXA &amp; DA Lodgements</div><div class="cb amber">Monthly Update Required</div></div>
+    <div class="card-body">
+      <div class="manual-grid">
+        <div class="form-group">
+          <label class="form-label">Reference Month</label>
+          <input type="month" class="form-input" id="manualMonth" value="2026-02">
+        </div>
+        <div class="form-group">
+          <label class="form-label">PEXA Settlements (National)</label>
+          <input type="number" class="form-input" id="manualPexa" placeholder="e.g. 42500">
+          <span class="form-hint">Total property settlements this month</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label">PEXA New Loans ($M)</label>
+          <input type="number" class="form-input" id="manualPexaLoans" placeholder="e.g. 8200">
+          <span class="form-hint">New mortgage value $M</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label">DA Lodgements (Your State)</label>
+          <input type="number" class="form-input" id="manualDA" placeholder="e.g. 3200">
+          <span class="form-hint">Total DAs lodged this month</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Land Title Registrations</label>
+          <input type="number" class="form-input" id="manualTitles" placeholder="e.g. 4800">
+          <span class="form-hint">New lot titles registered</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notes</label>
+          <input type="text" class="form-input" id="manualNotes" placeholder="Any notable market observations">
+        </div>
+      </div>
+      <button class="save-btn" onclick="saveManualData()">💾 Save Data Entry</button>
+      <div id="manualSaveMsg" style="display:none;margin-top:10px;padding:8px 14px;background:var(--green-lt);color:var(--green);border-radius:6px;font-size:13px;font-weight:600">✅ Data saved successfully</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ch"><div class="ct">📊 PEXA &amp; DA Lodgements — Historical Entries</div></div>
+    <div class="card-body">
+      <div class="tbl-wrap">
+        <table class="tbl" id="manualDataTable">
+          <thead><tr><th>Month</th><th>PEXA Settlements</th><th>PEXA Loans $M</th><th>DA Lodgements</th><th>Land Title Regs</th><th>Notes</th><th></th></tr></thead>
+          <tbody id="manualDataBody">
+            <tr><td colspan="7" style="text-align:center;color:var(--grey-500);padding:20px">No data entered yet. Add your first entry above.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec-title">🏗️ Tier 4 — Construction Commencements (ABS 8752.0)</div>
+  <div class="g2">
+    <div class="card">
+      <div class="ch"><div class="ct">🏗️ Construction Commencements — Quarterly</div><div class="cb green">ABS 8752.0</div></div>
+      <div class="card-body"><div class="cw"><canvas id="c_commence_detail"></canvas></div>
+      <p class="cn">Quarterly commencements confirm that approved projects are converting to active construction. This is the final confirmation signal before cost pressure manifests in the PPI.</p></div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct">📋 Pipeline Indicator Summary Table</div></div>
+      <div class="card-body">
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead><tr><th>Indicator</th><th>Source</th><th>Lead Time</th><th>Current Value</th><th>Direction</th><th>Signal</th></tr></thead>
+            <tbody>
+              <tr><td class="b">Construction Loans</td><td>ABS 5601.0</td><td>12–18 mths</td><td>+8.2% p.a.</td><td>↑ Rising</td><td><span class="rb vh">Strong ↑</span></td></tr>
+              <tr><td class="b">PEXA Land Settlements</td><td>PEXA Monthly</td><td>12–15 mths</td><td>Manual entry</td><td>—</td><td><span class="rb md">Manual</span></td></tr>
+              <tr><td class="b">DA Lodgements</td><td>State Portals</td><td>9–12 mths</td><td>Manual entry</td><td>—</td><td><span class="rb md">Manual</span></td></tr>
+              <tr><td class="b">Building Approvals — Houses</td><td>ABS 8731.0</td><td>6–9 mths</td><td>9,474/mth</td><td>↑ Rising</td><td><span class="rb mh">⚠ Upward</span></td></tr>
+              <tr><td class="b">Building Approvals — Apts</td><td>ABS 8731.0</td><td>9–12 mths</td><td>6,719/mth</td><td>↑ Surge</td><td><span class="rb vh">Strong ↑</span></td></tr>
+              <tr><td class="b">Construction Commencements</td><td>ABS 8752.0</td><td>3–6 mths</td><td>12,841/qtr</td><td>↑ Rising</td><td><span class="rb mh">⚠ Rising</span></td></tr>
+              <tr><td class="b">Producer Price Index</td><td>ABS 6427.0</td><td>Lagging</td><td>+2.4% p.a.</td><td>↑ Sticky</td><td><span class="rb mh">Elevated</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ████ LEAD INDICATORS ████ -->
+<div class="page" id="page-lead">
+  <div class="pg-title">📡 Lead Indicators</div>
+  <div class="pg-sub">Primary lead indicators that move ahead of construction costs by 6–12 months.</div>
+  <div class="kpi-row">
+    <div class="kpi amber"><div class="kpi-lbl">Primary — Building Approvals</div><div class="kpi-val" style="font-size:15px;margin-top:4px">⭐⭐⭐⭐⭐</div><div class="kpi-chg fl">6–12 mth lead</div><div class="kpi-note">Strongest indicator</div></div>
+    <div class="kpi purple"><div class="kpi-lbl">New — Construction Loans</div><div class="kpi-val" style="font-size:15px;margin-top:4px">⭐⭐⭐⭐⭐</div><div class="kpi-chg fl">12–18 mth lead</div><div class="kpi-note">Earliest reliable signal</div></div>
+    <div class="kpi green"><div class="kpi-lbl">Houses — Current</div><div class="kpi-val">9,474</div><div class="kpi-chg up">↑ Trending up</div><div class="kpi-note">Dec 2025</div></div>
+    <div class="kpi red"><div class="kpi-lbl">Apartments — Current</div><div class="kpi-val">6,719</div><div class="kpi-chg up">↑ Strong surge</div><div class="kpi-note">Dec 2025</div></div>
+  </div>
+  <div class="card">
+    <div class="ch"><div class="ct">🏗️ Building Approvals — Houses vs Apartments (Trend)</div><div class="cb">ABS 8731.0</div></div>
+    <div class="card-body"><div class="cw tall"><canvas id="c_approvals_detail"></canvas></div>
+    <p class="cn">Trend series smooths seasonal variation. COVID surge (2020–21) in house approvals directly preceded the 2021–22 cost explosion. The current apartment recovery is the key watch signal for 2026.</p></div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="ch"><div class="ct">📊 Total Private Sector Approvals</div><div class="cb">Houses + Apts</div></div>
+      <div class="card-body"><div class="cw"><canvas id="c_approvals_total"></canvas></div>
+      <p class="cn">Combined approvals signal aggregate demand pressure on all trades simultaneously.</p></div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct">📈 Year-on-Year Change — Approvals</div><div class="cb">Annual % change</div></div>
+      <div class="card-body"><div class="cw"><canvas id="c_approvals_yoy"></canvas></div>
+      <p class="cn">Sustained positive readings above 10% signal future cost pressure in the pipeline.</p></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ch"><div class="ct">📋 Indicator Rating Summary</div></div>
+    <div class="card-body">
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Indicator</th><th>ABS Series</th><th>Lead Time</th><th>Reliability</th><th>Current Signal</th><th>Rating</th></tr></thead>
+          <tbody>
+            <tr><td class="b">Construction Loan Commitments</td><td>5601.0</td><td>12–18 months</td><td>High</td><td><span class="rb vh">🔴 Rising Fast</span></td><td>⭐⭐⭐⭐⭐</td></tr>
+            <tr><td class="b">Building Approvals — Apartments</td><td>8731.0</td><td>9–12 months</td><td>High</td><td><span class="rb vh">🔴 Strong Surge</span></td><td>⭐⭐⭐⭐⭐</td></tr>
+            <tr><td class="b">Building Approvals — Houses</td><td>8731.0</td><td>6–9 months</td><td>High</td><td><span class="rb mh">⚠ Upward Trend</span></td><td>⭐⭐⭐⭐⭐</td></tr>
+            <tr><td class="b">PEXA Land Settlements</td><td>PEXA Monthly</td><td>12–15 months</td><td>High</td><td><span class="rb md">Manual Entry</span></td><td>⭐⭐⭐⭐</td></tr>
+            <tr><td class="b">DA Lodgements</td><td>State Portals</td><td>9–12 months</td><td>Medium</td><td><span class="rb md">Manual Entry</span></td><td>⭐⭐⭐⭐</td></tr>
+            <tr><td class="b">Construction Commencements</td><td>8752.0</td><td>3–6 months</td><td>High</td><td><span class="rb mh">⚠ Rising</span></td><td>⭐⭐⭐⭐</td></tr>
+            <tr><td class="b">Residential Property Prices</td><td>6416.0</td><td>12–18 months</td><td>Medium</td><td><span class="rb mh">⚠ Broadly Rising</span></td><td>⭐⭐⭐</td></tr>
+            <tr><td class="b">Electricity Price Index</td><td>6401.0</td><td>3–6 months</td><td>Low — policy distorted</td><td><span class="rb lm">Stable ex-rebates</span></td><td>⭐⭐</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ████ COST INDEXES ████ -->
+<div class="page" id="page-costs">
+  <div class="pg-title">💰 Construction Cost Indexes</div>
+  <div class="pg-sub">ABS Producer Price Indexes tracking actual construction input and output costs. Lagging indicators — they confirm what has already happened.</div>
+  <div class="kpi-row">
+    <div class="kpi orange"><div class="kpi-lbl">Input Cost — 5yr Change</div><div class="kpi-val">+34.7%</div><div class="kpi-chg up">↑ 2021 Q1 to 2025 Q4</div><div class="kpi-note">All construction inputs</div></div>
+    <div class="kpi orange"><div class="kpi-lbl">Current Annual Rate</div><div class="kpi-val">+2.4%</div><div class="kpi-chg fl">Moderating but above CPI</div><div class="kpi-note">2025 annual rate</div></div>
+    <div class="kpi red"><div class="kpi-lbl">Highest 3yr Category</div><div class="kpi-val">+12.0%</div><div class="kpi-chg up">Ceramic Products</div><div class="kpi-note">2023–2025</div></div>
+    <div class="kpi green"><div class="kpi-lbl">Only Deflating Category</div><div class="kpi-val">−10.7%</div><div class="kpi-chg dn">Steel Products</div><div class="kpi-note">2023–2025</div></div>
+  </div>
+  <div class="card">
+    <div class="ch"><div class="ct">📈 Construction Cost Index — 5 Year History</div><div class="cb">ABS 6427.0</div></div>
+    <div class="card-body"><div class="cw tall"><canvas id="c_costs_5yr"></canvas></div>
+    <p class="cn">All Groups weighted average index. Note the steep COVID escalation phase 2021–2022, followed by moderation from 2023. Costs are not falling — the rate of increase has slowed.</p></div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="ch"><div class="ct">📊 5-Year Cumulative Growth by Category</div><div class="cb">2021 Q1 → 2025 Q4</div></div>
+      <div class="card-body"><div class="cw tall"><canvas id="c_cumulative_5yr"></canvas></div>
+      <p class="cn">Ceramic and cement products lead cumulative escalation. Steel is the only category showing real deflation from its 2022 peak.</p></div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct">📊 3-Year Cumulative Growth by Category</div><div class="cb">2023 Q1 → 2025 Q4</div></div>
+      <div class="card-body"><div class="cw tall"><canvas id="c_cumulative_3yr"></canvas></div>
+      <p class="cn">Isolating the last 3 years removes COVID noise and shows the true current trend. Ceramic products remain the standout risk.</p></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ch"><div class="ct">📋 5-Year PPI Summary Table</div><div class="cb">2021 Q1 → 2025 Q4</div></div>
+    <div class="card-body">
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Category</th><th>2021 Q1</th><th>2022 Q1 Peak</th><th>2023 Q1</th><th>2025 Q4</th><th>5yr Change</th><th>Avg p.a.</th><th>Trend</th><th>Risk</th></tr></thead>
+          <tbody>
+            <tr><td class="b">Ceramic Products</td><td>131</td><td>149</td><td>166</td><td>186</td><td><div class="bw"><div class="bt"><div class="bf" style="width:100%;background:var(--red)"></div></div><span class="bl" style="color:var(--red)">+42.0%</span></div></td><td>+8.4%</td><td>↑ Still rising</td><td><span class="rb vh">Very High</span></td></tr>
+            <tr><td class="b">Cement Products</td><td>118</td><td>133</td><td>151</td><td>168</td><td><div class="bw"><div class="bt"><div class="bf" style="width:99%;background:var(--red)"></div></div><span class="bl" style="color:var(--red)">+42.4%</span></div></td><td>+8.5%</td><td>↑ Accelerating</td><td><span class="rb vh">Very High</span></td></tr>
+            <tr><td class="b">Timber, Board &amp; Joinery</td><td>124</td><td>157</td><td>163</td><td>172</td><td><div class="bw"><div class="bt"><div class="bf" style="width:91%;background:var(--orange)"></div></div><span class="bl" style="color:var(--orange)">+38.7%</span></div></td><td>+7.7%</td><td>↑ Re-escalating</td><td><span class="rb hi">High</span></td></tr>
+            <tr><td class="b">Electrical Equipment</td><td>140</td><td>161</td><td>177</td><td>189</td><td><div class="bw"><div class="bt"><div class="bf" style="width:83%;background:var(--orange)"></div></div><span class="bl" style="color:var(--orange)">+35.0%</span></div></td><td>+7.0%</td><td>↑ Volatile</td><td><span class="rb mh">Med-High</span></td></tr>
+            <tr class="avg"><td class="b">All Groups Average</td><td>121</td><td>139</td><td>152</td><td>163</td><td><div class="bw"><div class="bt"><div class="bf" style="width:82%;background:var(--dark)"></div></div><span class="bl">+34.7%</span></div></td><td>+6.9%</td><td>↑ Moderating</td><td><span class="rb md">Average</span></td></tr>
+            <tr><td class="b">Other Materials</td><td>118</td><td>137</td><td>152</td><td>158</td><td><div class="bw"><div class="bt"><div class="bf" style="width:80%;background:var(--amber)"></div></div><span class="bl" style="color:var(--amber)">+33.9%</span></div></td><td>+6.8%</td><td>→ Plateauing</td><td><span class="rb md">Medium</span></td></tr>
+            <tr><td class="b">Other Metal Products</td><td>116</td><td>134</td><td>148</td><td>155</td><td><div class="bw"><div class="bt"><div class="bf" style="width:79%;background:var(--amber)"></div></div><span class="bl" style="color:var(--amber)">+33.6%</span></div></td><td>+6.7%</td><td>↑ Slow creep</td><td><span class="rb md">Medium</span></td></tr>
+            <tr><td class="b">Concrete, Cement &amp; Sand</td><td>107</td><td>119</td><td>133</td><td>143</td><td><div class="bw"><div class="bt"><div class="bf" style="width:79%;background:var(--amber)"></div></div><span class="bl" style="color:var(--amber)">+33.6%</span></div></td><td>+6.7%</td><td>↑ Persistent</td><td><span class="rb mh">Med-High</span></td></tr>
+            <tr><td class="b">Plumbing Products</td><td>125</td><td>139</td><td>155</td><td>151</td><td><div class="bw"><div class="bt"><div class="bf" style="width:49%;background:var(--green)"></div></div><span class="bl" style="color:var(--green)">+20.8%</span></div></td><td>+4.2%</td><td>↓ Softening</td><td><span class="rb lm">Low-Med</span></td></tr>
+            <tr><td class="b">Steel Products</td><td>108</td><td>163</td><td>140</td><td>125</td><td><div class="bw"><div class="bt"><div class="bf" style="width:37%;background:var(--green)"></div></div><span class="bl" style="color:var(--green)">+15.7%</span></div></td><td>+3.1%</td><td>↓ Deflating</td><td><span class="rb lo">Low</span></td></tr>
+            <tr><td class="b">Gas &amp; Elec Appliances</td><td>117</td><td>122</td><td>130</td><td>135</td><td><div class="bw"><div class="bt"><div class="bf" style="width:36%;background:var(--green)"></div></div><span class="bl" style="color:var(--green)">+15.4%</span></div></td><td>+3.1%</td><td>→ Stable</td><td><span class="rb lo">Low</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ch"><div class="ct">📋 3-Year PPI Summary Table</div><div class="cb">2023 Q1 → 2025 Q4</div></div>
+    <div class="card-body">
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Category</th><th>2023 Q1</th><th>2024 Q1</th><th>2025 Q4</th><th>3yr Change</th><th>Avg p.a.</th><th>Direction</th><th>Risk</th></tr></thead>
+          <tbody>
+            <tr><td class="b">Ceramic Products</td><td>166</td><td>174</td><td>186</td><td><span style="color:var(--red);font-weight:700">+12.0%</span></td><td>+4.0%</td><td>↑ Unbroken rise</td><td><span class="rb vh">Very High</span></td></tr>
+            <tr><td class="b">Cement Products</td><td>151</td><td>160</td><td>168</td><td><span style="color:var(--red);font-weight:700">+11.3%</span></td><td>+3.8%</td><td>↑ Accelerating</td><td><span class="rb vh">Very High</span></td></tr>
+            <tr><td class="b">Concrete, Cement &amp; Sand</td><td>133</td><td>138</td><td>143</td><td><span style="color:var(--orange);font-weight:700">+7.5%</span></td><td>+2.5%</td><td>↑ Persistent</td><td><span class="rb mh">Med-High</span></td></tr>
+            <tr><td class="b">Electrical Equipment</td><td>177</td><td>185</td><td>189</td><td><span style="color:var(--orange);font-weight:700">+6.8%</span></td><td>+2.3%</td><td>↑ Volatile</td><td><span class="rb mh">Med-High</span></td></tr>
+            <tr class="avg"><td class="b">All Groups Average</td><td>152</td><td>158</td><td>163</td><td><span style="font-weight:700">+7.2%</span></td><td>+2.4%</td><td>↑ Moderating</td><td><span class="rb md">Average</span></td></tr>
+            <tr><td class="b">Timber, Board &amp; Joinery</td><td>163</td><td>165</td><td>172</td><td><span style="color:var(--orange);font-weight:700">+5.5%</span></td><td>+1.8%</td><td>↑ Re-escalating</td><td><span class="rb mh">Med-High</span></td></tr>
+            <tr><td class="b">Other Metal Products</td><td>148</td><td>151</td><td>155</td><td><span style="color:var(--amber);font-weight:700">+4.7%</span></td><td>+1.6%</td><td>↑ Slow creep</td><td><span class="rb md">Medium</span></td></tr>
+            <tr><td class="b">Gas &amp; Elec Appliances</td><td>130</td><td>132</td><td>135</td><td><span style="color:var(--green);font-weight:700">+3.8%</span></td><td>+1.3%</td><td>→ Stable</td><td><span class="rb lo">Low</span></td></tr>
+            <tr><td class="b">Other Materials</td><td>152</td><td>155</td><td>158</td><td><span style="color:var(--green);font-weight:700">+3.9%</span></td><td>+1.3%</td><td>→ Plateauing</td><td><span class="rb md">Medium</span></td></tr>
+            <tr><td class="b">Plumbing Products</td><td>155</td><td>153</td><td>151</td><td><span style="color:var(--green);font-weight:700">−2.6%</span></td><td>−0.9%</td><td>↓ Softening</td><td><span class="rb lo">Low</span></td></tr>
+            <tr><td class="b">Steel Products</td><td>140</td><td>132</td><td>125</td><td><span style="color:var(--green);font-weight:700">−10.7%</span></td><td>−3.6%</td><td>↓ Deflating</td><td><span class="rb lo">Low</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ████ MATERIAL PRICES PPI ████ -->
+<div class="page" id="page-ppi">
+  <div class="pg-title">🧱 Material Prices — Producer Price Index Detail</div>
+  <div class="pg-sub">Category-by-category breakdown of ABS PPI for construction materials. Use to assess risk in specific trade packages at tender time.</div>
+  <div class="g2">
+    <div class="card">
+      <div class="ch"><div class="ct">🔴 Ceramic Products</div><div class="cb">+12.0% over 3 years</div></div>
+      <div class="card-body"><div class="cw"><canvas id="c_ceramic"></canvas></div>
+      <p class="cn">Zero quarters of decline across 3 years. Most consistent escalator in the dataset. Apply 4.0–5.0% p.a. Trades: tiling, bathrooms, facade, floor finishes.</p></div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct">🔴 Cement Products</div><div class="cb">+11.3% over 3 years</div></div>
+      <div class="card-body"><div class="cw"><canvas id="c_cement"></canvas></div>
+      <p class="cn">Accelerated in 2025 with +8 points in 12 months. Apply 3.5–4.5% p.a. Trades: blockwork, masonry, precast, tilt panels.</p></div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="ch"><div class="ct">🟠 Timber, Board &amp; Joinery</div><div class="cb">+5.5% over 3 years</div></div>
+      <div class="card-body"><div class="cw"><canvas id="c_timber"></canvas></div>
+      <p class="cn">Re-escalating after 2023 dip. Heavy index weighting amplifies impact. Apply 2.5–3.5% p.a. Trades: framing, formwork, joinery, fitout, flooring.</p></div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct">🟠 Electrical Equipment</div><div class="cb">+6.8% over 3 years</div></div>
+      <div class="card-body"><div class="cw"><canvas id="c_electrical"></canvas></div>
+      <p class="cn">High volatility — quarterly swings up to 5 points. Apply 2.0–3.0% p.a. Consider early procurement or R&amp;F clauses for projects &gt;12 months.</p></div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="ch"><div class="ct">🟡 Concrete, Cement &amp; Sand</div><div class="cb">+7.5% over 3 years</div></div>
+      <div class="card-body"><div class="cw"><canvas id="c_concrete"></canvas></div>
+      <p class="cn">Slow but persistent — no quarters of decline. Apply 2.0–2.5% p.a. Trades: structural concrete, slabs, civil works, foundations.</p></div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct">🟡 Other Metal Products</div><div class="cb">+4.7% over 3 years</div></div>
+      <div class="card-body"><div class="cw"><canvas id="c_metals"></canvas></div>
+      <p class="cn">Largest index weighting (29 contribution points). Steady low-volatility escalation. Apply 1.5–2.0% p.a. Trades: structural connections, cladding, framing, balustrades.</p></div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="ch"><div class="ct">🟢 Steel Products</div><div class="cb">−10.7% over 3 years</div></div>
+      <div class="card-body"><div class="cw"><canvas id="c_steel"></canvas></div>
+      <p class="cn">Only category showing real deflation. Peaked at 163 (2022 Q1), now 125. Approaching floor — model flat. Treat further deflation as upside only.</p></div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct">🟢 Plumbing Products</div><div class="cb">−2.6% over 3 years</div></div>
+      <div class="card-body"><div class="cw"><canvas id="c_plumbing"></canvas></div>
+      <p class="cn">Peaked mid-2023, gently deflating. Apply 0–1.0% p.a. Monitor for reversal if approvals-driven demand increases.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ████ ESCALATION RECOMMENDATIONS ████ -->
+<div class="page" id="page-recommendations">
+  <div class="pg-title">🎯 Escalation Recommendations</div>
+  <div class="pg-sub">Evidence-based escalation allowances for use at tender time. Based on 3-year ABS PPI trend data combined with current lead indicator signals. Review quarterly.</div>
+  <div class="alert red">
+    <div class="alert-ico">🚨</div>
+    <div><div class="a-title">Current Condition: ESCALATION CAUTION — Upward Pressure Resuming</div>
+    <div class="a-sub">All lead indicators signal renewed demand pressure through 2026–2027. Apply allowances at upper end of ranges for projects commencing after Q3 2026.</div></div>
+  </div>
+  <div class="sec-title">By Project Construction Start Date</div>
+  <div class="rec-grid">
+    <div class="rc ok">
+      <div class="rc-head"><div class="rc-ico">✅</div><div class="rc-title">Commencing Now — Q2 2026</div></div>
+      <div class="rc-pct">2.0–3.0%</div>
+      <div class="rc-sub">Per annum overall allowance</div>
+      <div class="rc-desc">Market moderating but not falling. Current cost trends support a 2–3% p.a. blended escalation across all trades. Costs are sticky — do not assume deflation.</div>
+      <div class="rc-trades"><strong>Key watch trades:</strong> Ceramics, cement products, timber re-escalation</div>
+    </div>
+    <div class="rc caution">
+      <div class="rc-head"><div class="rc-ico">⚠️</div><div class="rc-title">Commencing Q3–Q4 2026</div></div>
+      <div class="rc-pct">3.0–4.0%</div>
+      <div class="rc-sub">Per annum overall allowance</div>
+      <div class="rc-desc">Apartment approval surge converting to active construction. Labour and material pressure expected to increase. Apply upper end for apartment-heavy or fitout-heavy scopes.</div>
+      <div class="rc-trades"><strong>Key watch trades:</strong> All ceramics, concrete, electrical, timber</div>
+    </div>
+    <div class="rc urgent">
+      <div class="rc-head"><div class="rc-ico">🔴</div><div class="rc-title">Commencing 2027 Onward</div></div>
+      <div class="rc-pct">4.0–5.5%</div>
+      <div class="rc-sub">Per annum overall allowance</div>
+      <div class="rc-desc">Full demand surge expected to be in market. Government housing targets will amplify trade and material demand. Rise and fall provisions strongly recommended for contracts &gt;18 months.</div>
+      <div class="rc-trades"><strong>Key watch trades:</strong> All categories — seek R&amp;F clauses</div>
+    </div>
+  </div>
+  <div class="sec-title">By Trade / Material Category</div>
+  <div class="card">
+    <div class="ch"><div class="ct">📋 Category-by-Category Escalation Allowances</div><div class="cb">Based on 3-year ABS PPI trend</div></div>
+    <div class="card-body">
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Material / Trade Category</th><th>3yr Trend Rate</th><th>Suggested p.a.</th><th>Direction</th><th>Risk</th><th>Key Action</th></tr></thead>
+          <tbody>
+            <tr><td class="b">Ceramic Products</td><td>+4.0% p.a.</td><td><span style="color:var(--red);font-weight:800;font-size:15px">4.0–5.0%</span></td><td>↑ Accelerating</td><td><span class="rb vh">Very High</span></td><td>Early procurement · Lock in rates now</td></tr>
+            <tr><td class="b">Cement Products</td><td>+3.8% p.a.</td><td><span style="color:var(--red);font-weight:800;font-size:15px">3.5–4.5%</span></td><td>↑ Accelerating</td><td><span class="rb vh">Very High</span></td><td>Seek R&amp;F clauses on long projects</td></tr>
+            <tr><td class="b">Timber, Board &amp; Joinery</td><td>+1.8% p.a.</td><td><span style="color:var(--orange);font-weight:800;font-size:15px">2.5–3.5%</span></td><td>↑ Re-escalating</td><td><span class="rb hi">High</span></td><td>Monitor monthly · Allow upper end</td></tr>
+            <tr><td class="b">Electrical Equipment</td><td>+2.3% p.a.</td><td><span style="color:var(--orange);font-weight:800;font-size:15px">2.0–3.0%</span></td><td>↑ Volatile</td><td><span class="rb mh">Med-High</span></td><td>Early sub engagement on long projects</td></tr>
+            <tr><td class="b">Concrete, Cement &amp; Sand</td><td>+2.5% p.a.</td><td><span style="color:var(--orange);font-weight:800;font-size:15px">2.0–2.5%</span></td><td>↑ Persistent</td><td><span class="rb mh">Med-High</span></td><td>Standard contingency · Monitor</td></tr>
+            <tr><td class="b">Other Metal Products</td><td>+1.6% p.a.</td><td><span style="color:var(--amber);font-weight:800;font-size:15px">1.5–2.0%</span></td><td>↑ Steady</td><td><span class="rb md">Medium</span></td><td>Standard contingency</td></tr>
+            <tr><td class="b">Other Materials</td><td>+1.3% p.a.</td><td><span style="color:var(--amber);font-weight:800;font-size:15px">1.0–1.5%</span></td><td>→ Plateauing</td><td><span class="rb md">Medium</span></td><td>Standard contingency</td></tr>
+            <tr><td class="b">Plumbing Products</td><td>−0.9% p.a.</td><td><span style="color:var(--green);font-weight:800;font-size:15px">0–1.0%</span></td><td>↓ Softening</td><td><span class="rb lm">Low-Med</span></td><td>Monitor for reversal from demand</td></tr>
+            <tr><td class="b">Steel Products</td><td>−3.6% p.a.</td><td><span style="color:var(--green);font-weight:800;font-size:15px">0% flat</span></td><td>↓ Near floor</td><td><span class="rb lo">Low</span></td><td>Early procurement opportunity now</td></tr>
+            <tr><td class="b">Gas &amp; Elec Appliances</td><td>+1.3% p.a.</td><td><span style="color:var(--green);font-weight:800;font-size:15px">1.0–1.5%</span></td><td>→ Stable</td><td><span class="rb lo">Low</span></td><td>Minimal allowance required</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="sec-title">By Project Type</div>
+  <div class="card">
+    <div class="ch"><div class="ct">🏗️ Blended Escalation by Project Type</div><div class="cb">Current market conditions</div></div>
+    <div class="card-body">
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Project Type</th><th>Primary Exposed Categories</th><th>Now (2026)</th><th>2027+</th><th>Risk</th><th>Recommendation</th></tr></thead>
+          <tbody>
+            <tr><td class="b">Residential Apartments</td><td>Ceramics, cement, timber, plumbing, electrical</td><td><span style="color:var(--red);font-weight:700">3.5–4.5%</span></td><td><span style="color:var(--red);font-weight:700">4.5–6.0%</span></td><td><span class="rb vh">Very High</span></td><td>R&amp;F clauses · Early procurement of ceramics</td></tr>
+            <tr><td class="b">Commercial Fitout</td><td>Ceramics, timber, electrical, other materials</td><td><span style="color:var(--red);font-weight:700">3.0–4.0%</span></td><td><span style="color:var(--red);font-weight:700">4.0–5.5%</span></td><td><span class="rb vh">Very High</span></td><td>Early sub engagement · Price rise clauses</td></tr>
+            <tr><td class="b">Civil / Infrastructure</td><td>Concrete, cement, steel, other metals</td><td><span style="color:var(--orange);font-weight:700">2.0–3.0%</span></td><td><span style="color:var(--orange);font-weight:700">3.0–4.0%</span></td><td><span class="rb mh">Med-High</span></td><td>Steel opportunity now · Watch concrete</td></tr>
+            <tr><td class="b">Industrial / Warehouse</td><td>Steel, other metals, concrete</td><td><span style="color:var(--green);font-weight:700">1.5–2.5%</span></td><td><span style="color:var(--amber);font-weight:700">2.5–3.5%</span></td><td><span class="rb md">Medium</span></td><td>Best project type for fixed price currently</td></tr>
+            <tr><td class="b">Retail Fitout</td><td>Timber, ceramics, electrical, other materials</td><td><span style="color:var(--orange);font-weight:700">2.5–3.5%</span></td><td><span style="color:var(--orange);font-weight:700">3.5–5.0%</span></td><td><span class="rb mh">Med-High</span></td><td>Lock in joinery and tiling early</td></tr>
+            <tr><td class="b">Education / Health</td><td>All categories — complex mix</td><td><span style="color:var(--orange);font-weight:700">3.0–4.0%</span></td><td><span style="color:var(--red);font-weight:700">4.0–5.5%</span></td><td><span class="rb hi">High</span></td><td>R&amp;F provisions essential for &gt;18 month programs</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="warn">
+    <h4>⚠️ Important Disclaimer</h4>
+    <p>These escalation allowances are indicative only, based on historical ABS PPI trend data and current lead indicator signals. They should be validated against current subcontractor and supplier feedback at the time of each tender. Market conditions can change rapidly — review these allowances at least quarterly.</p>
+  </div>
+</div>
+
+<!-- ████ PROJECT CALCULATOR ████ -->
+<div class="page" id="page-calculator">
+  <div class="pg-title">🧮 Project Escalation Calculator</div>
+  <div class="pg-sub">Input your project details to calculate recommended escalation dollar allowances based on current market conditions and lead indicator signals.</div>
+  <div class="card">
+    <div class="ch"><div class="ct">📊 Project Details</div><div class="cb">Enter your project parameters</div></div>
+    <div class="card-body">
+      <div class="calc-grid">
+        <div class="calc-form">
+          <div class="form-group">
+            <label class="form-label">Project Name</label>
+            <input type="text" class="form-input" id="calcName" placeholder="e.g. Smith Street Apartments">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Project Type</label>
+            <select class="form-select" id="calcType">
+              <option value="apartments">Residential Apartments</option>
+              <option value="fitout">Commercial Fitout</option>
+              <option value="civil">Civil / Infrastructure</option>
+              <option value="industrial">Industrial / Warehouse</option>
+              <option value="retail">Retail Fitout</option>
+              <option value="education">Education / Health</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Base Tender Value ($)</label>
+            <input type="number" class="form-input" id="calcValue" placeholder="e.g. 5000000">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Construction Start Date</label>
+            <input type="month" class="form-input" id="calcStart" value="2026-07">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Construction Duration (months)</label>
+            <input type="number" class="form-input" id="calcDuration" placeholder="e.g. 18" min="1" max="60">
+          </div>
+          <div class="form-group">
+            <label class="form-label">High-Risk Trade Proportion (%)</label>
+            <input type="number" class="form-input" id="calcHighRisk" placeholder="e.g. 35" min="0" max="100">
+            <span class="form-hint">Ceramics, cement, timber as % of total cost</span>
+          </div>
+          <button class="calc-btn" onclick="runCalculator()">🧮 Calculate Escalation Allowance</button>
+        </div>
+        <div class="calc-results" id="calcResults">
+          <div class="result-placeholder">
+            <div style="font-size:36px;margin-bottom:12px">🧮</div>
+            <div style="font-weight:600;color:var(--grey-700);margin-bottom:6px">Ready to Calculate</div>
+            <div>Enter your project details and click Calculate to see your recommended escalation allowance broken down by year and trade category.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="card" id="calcChartCard" style="display:none">
+    <div class="ch"><div class="ct">📈 Escalation Profile — Year by Year</div><div class="cb">Project specific</div></div>
+    <div class="card-body"><div class="cw"><canvas id="c_calc_chart"></canvas></div></div>
+  </div>
+  <div class="card">
+    <div class="ch"><div class="ct">📋 Recent Calculations</div><div class="cb">Session history</div></div>
+    <div class="card-body">
+      <div class="tbl-wrap">
+        <table class="tbl" id="calcHistoryTable">
+          <thead><tr><th>Project Name</th><th>Type</th><th>Tender Value</th><th>Start</th><th>Duration</th><th>Blended Rate</th><th>Total Allowance</th><th>Risk</th></tr></thead>
+          <tbody id="calcHistoryBody">
+            <tr><td colspan="8" style="text-align:center;color:var(--grey-500);padding:20px">No calculations yet. Use the calculator above.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ████ TENDER TRACKER ████ -->
+<div class="page" id="page-tracker">
+  <div class="pg-title">📋 Tender Tracker</div>
+  <div class="pg-sub">Log past tenders and compare assumed escalation at tender time against actual cost outcomes. Helps calibrate future escalation assumptions.</div>
+  <div class="alert blue">
+    <div class="alert-ico">💡</div>
+    <div><div class="a-title">How to Use the Tender Tracker</div>
+    <div class="a-sub">Record your escalation assumption at tender time. As the project progresses, update the actual escalation experienced. The variance column will show whether your assumptions were accurate, helping you improve future estimates.</div></div>
+  </div>
+  <div class="card">
+    <div class="ch"><div class="ct">➕ Add New Tender Record</div><div class="cb">Log a tender</div></div>
+    <div class="card-body">
+      <div class="tracker-form">
+        <div class="form-group">
+          <label class="form-label">Project Name</label>
+          <input type="text" class="form-input" id="trkName" placeholder="Project name">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Project Type</label>
+          <select class="form-select" id="trkType">
+            <option value="Residential Apartments">Residential Apartments</option>
+            <option value="Commercial Fitout">Commercial Fitout</option>
+            <option value="Civil / Infrastructure">Civil / Infrastructure</option>
+            <option value="Industrial / Warehouse">Industrial / Warehouse</option>
+            <option value="Retail Fitout">Retail Fitout</option>
+            <option value="Education / Health">Education / Health</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tender Value ($)</label>
+          <input type="number" class="form-input" id="trkValue" placeholder="e.g. 5000000">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tender Date</label>
+          <input type="month" class="form-input" id="trkDate">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Assumed Escalation (%)</label>
+          <input type="number" class="form-input" id="trkAssumed" placeholder="e.g. 3.5" step="0.1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Actual Escalation (%) <span style="font-weight:400;font-size:10px">(update later)</span></label>
+          <input type="number" class="form-input" id="trkActual" placeholder="Leave blank if unknown" step="0.1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select class="form-select" id="trkStatus">
+            <option value="Tendered">Tendered</option>
+            <option value="Won">Won</option>
+            <option value="Lost">Lost</option>
+            <option value="Under Construction">Under Construction</option>
+            <option value="Complete">Complete</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notes</label>
+          <input type="text" class="form-input" id="trkNotes" placeholder="Any notes">
+        </div>
+        <button class="add-btn" onclick="addTenderRecord()">➕ Add Record</button>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ch"><div class="ct">📊 Tender History — Assumed vs Actual Escalation</div></div>
+    <div class="card-body">
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Project</th><th>Type</th><th>Value</th><th>Date</th><th>Assumed %</th><th>Actual %</th><th>Variance</th><th>Status</th><th>Notes</th><th></th></tr></thead>
+          <tbody id="trackerBody">
+            <tr><td colspan="10" style="text-align:center;color:var(--grey-500);padding:20px">No tender records yet. Add your first record above.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="ch"><div class="ct">📈 Assumed vs Actual Escalation — Trend</div></div>
+      <div class="card-body"><div class="cw"><canvas id="c_tracker_chart"></canvas></div>
+      <p class="cn">Visual comparison of assumed vs actual escalation rates across your tender history. Use this to calibrate future assumptions.</p></div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct">📊 Tracker Summary Statistics</div></div>
+      <div class="card-body" id="trackerStats">
+        <div style="text-align:center;color:var(--grey-500);padding:30px;font-size:13px">Add tender records to see summary statistics and calibration insights.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ████ ALERTS ████ -->
+<div class="page" id="page-alerts">
+  <div class="pg-title">🔔 Alert Settings</div>
+  <div class="pg-sub">Configure threshold alerts so your team is notified when key indicators cross warning levels. Copy the trigger conditions below and set a calendar reminder to check monthly.</div>
+  <div class="alert blue">
+    <div class="alert-ico">ℹ️</div>
+    <div><div class="a-title">About Alerts</div>
+    <div class="a-sub">Fully automated email alerts require a backend server. This page lets you configure your alert thresholds and shows you the current status of each indicator against your thresholds so you can manually act when triggered. For automated alerts, ask your IT team to set up a simple monitoring script.</div></div>
+  </div>
+  <div class="card">
+    <div class="ch"><div class="ct">⚙️ Alert Threshold Configuration</div><div class="cb">Set your trigger levels</div></div>
+    <div class="card-body">
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">
+        <div class="threshold-row">
+          <div class="threshold-label">🏗️ House Approvals — Alert if monthly trend exceeds</div>
+          <input type="number" class="threshold-input" id="thr_houses" value="11000">
+          <span class="threshold-unit">approvals/month</span>
+          <span class="rb" id="thr_houses_status" style="margin-left:8px">Checking...</span>
+        </div>
+        <div class="threshold-row">
+          <div class="threshold-label">🏢 Apartment Approvals — Alert if monthly trend exceeds</div>
+          <input type="number" class="threshold-input" id="thr_apts" value="7000">
+          <span class="threshold-unit">approvals/month</span>
+          <span class="rb" id="thr_apts_status" style="margin-left:8px">Checking...</span>
+        </div>
+        <div class="threshold-row">
+          <div class="threshold-label">🏦 Construction Loans — Alert if annual growth exceeds</div>
+          <input type="number" class="threshold-input" id="thr_loans" value="10">
+          <span class="threshold-unit">% per annum</span>
+          <span class="rb" id="thr_loans_status" style="margin-left:8px">Checking...</span>
+        </div>
+        <div class="threshold-row">
+          <div class="threshold-label">🧱 Ceramic Products PPI — Alert if annual rate exceeds</div>
+          <input type="number" class="threshold-input" id="thr_ceramic" value="5">
+          <span class="threshold-unit">% per annum</span>
+          <span class="rb" id="thr_ceramic_status" style="margin-left:8px">Checking...</span>
+        </div>
+        <div class="threshold-row">
+          <div class="threshold-label">🏗️ Cement Products PPI — Alert if annual rate exceeds</div>
+          <input type="number" class="threshold-input" id="thr_cement" value="5">
+          <span class="threshold-unit">% per annum</span>
+          <span class="rb" id="thr_cement_status" style="margin-left:8px">Checking...</span>
+        </div>
+        <div class="threshold-row">
+          <div class="threshold-label">🌲 Timber Products PPI — Alert if annual rate exceeds</div>
+          <input type="number" class="threshold-input" id="thr_timber" value="4">
+          <span class="threshold-unit">% per annum</span>
+          <span class="rb" id="thr_timber_status" style="margin-left:8px">Checking...</span>
+        </div>
+        <div class="threshold-row">
+          <div class="threshold-label">💰 Overall Input Cost Index — Alert if annual rate exceeds</div>
+          <input type="number" class="threshold-input" id="thr_input" value="4">
+          <span class="threshold-unit">% per annum</span>
+          <span class="rb" id="thr_input_status" style="margin-left:8px">Checking...</span>
+        </div>
+      </div>
+      <button class="calc-btn" onclick="checkThresholds()">🔍 Check All Thresholds Now</button>
+      <button class="save-btn" style="margin-left:10px" onclick="saveThresholds()">💾 Save Thresholds</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ch"><div class="ct">🚦 Current Alert Status — All Indicators</div></div>
+    <div class="card-body" id="alertStatusBoard">
+      <div style="text-align:center;color:var(--grey-500);padding:20px;font-size:13px">Click "Check All Thresholds Now" to see current status of all indicators against your configured thresholds.</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ch"><div class="ct">📧 Email Alert Setup Guide</div><div class="cb">For IT team</div></div>
+    <div class="card-body">
+      <div class="info">
+        <h4>How to Set Up Automated Email Alerts</h4>
+        <p>To receive automated email notifications when thresholds are breached, ask your IT team to:</p>
+        <ul>
+          <li>Set up a monthly scheduled task (Windows Task Scheduler or cron job) to run a simple script</li>
+          <li>The script should fetch the ABS API endpoints listed in the About page</li>
+          <li>Compare fetched values against the thresholds configured above</li>
+          <li>Send an email via your company SMTP server if any threshold is breached</li>
+          <li>ABS API endpoints: api.data.abs.gov.au/data/BA/1.0/AUS — Building Approvals</li>
+          <li>ABS API endpoints: api.data.abs.gov.au/data/HF/1.0/AUS — Housing Finance</li>
+        </ul>
+      </div>
+      <div class="warn">
+        <h4>📅 Recommended Monthly Review Checklist</h4>
+        <p>Until automated alerts are configured, set a recurring calendar reminder on the first Monday of each month to:<br><br>
+        1. Visit this dashboard and click Refresh Data<br>
+        2. Check the Pipeline Indicators page for PEXA and DA data updates<br>
+        3. Click "Check All Thresholds Now" on this page<br>
+        4. Update the PEXA manual data entry with the latest monthly report<br>
+        5. Review the Escalation Recommendations page for any required updates to tender allowances</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ████ ABOUT ████ -->
+<div class="page" id="page-about">
+  <div class="pg-title">ℹ️ About This Dashboard</div>
+  <div class="pg-sub">Methodology, data sources, and guidance on how to use this tool effectively.</div>
+  <div class="g2">
+    <div>
+      <div class="info">
+        <h4>📊 What This Dashboard Does</h4>
+        <p>This tool monitors key economic indicators that lead construction cost movements by 6–18 months, giving Murphy Builders estimators advance warning of cost escalation before it appears in supplier and subcontractor pricing. Version 2.0 adds construction loan commitments, construction commencements, pipeline indicator framework, project calculator, tender tracker, and alert thresholds.</p>
+      </div>
+      <div class="info">
+        <h4>🔗 The Lead-Lag Relationship Explained</h4>
+        <p>The dashboard is built around a well-established economic chain:</p>
+        <ul>
+          <li><strong>Step 1:</strong> Banks approve construction loans → developer pipeline confirmed (18 mth lead)</li>
+          <li><strong>Step 2:</strong> Developers purchase land → PEXA settlements rise (15 mth lead)</li>
+          <li><strong>Step 3:</strong> DAs lodged → planning pipeline growing (12 mth lead)</li>
+          <li><strong>Step 4:</strong> Building approvals granted → construction imminent (9 mth lead)</li>
+          <li><strong>Step 5:</strong> Commencements rise → immediate demand pressure (3–6 mth lead)</li>
+          <li><strong>Step 6:</strong> PPI rises → cost escalation confirmed (lagging)</li>
+          <li><strong>Step 7:</strong> Tender prices increase → impact on Murphy Builders</li>
+        </ul>
+      </div>
+    </div>
+    <div>
+      <div class="info">
+        <h4>🔄 Data Update Schedule</h4>
+        <ul>
+          <li><strong>Building Approvals (ABS 8731.0):</strong> Monthly — ~5 weeks after reference month</li>
+          <li><strong>Housing Finance (ABS 5601.0):</strong> Monthly — ~5 weeks after reference month</li>
+          <li><strong>Construction Commencements (ABS 8752.0):</strong> Quarterly — ~10 weeks after quarter end</li>
+          <li><strong>Producer Price Index (ABS 6427.0):</strong> Quarterly — ~4 weeks after quarter end</li>
+          <li><strong>PEXA Market Insights:</strong> Monthly — manually entered from pexa.com.au/market-insights</li>
+          <li><strong>DA Lodgements:</strong> Monthly — manually entered from state planning portals</li>
+        </ul>
+      </div>
+      <div class="info">
+        <h4>📡 ABS API Information</h4>
+        <p>This dashboard connects to the ABS SDMX-JSON API at api.data.abs.gov.au. The API is free, requires no authentication, and is updated automatically when ABS publishes new data. If live data cannot be retrieved (e.g. network restrictions), the dashboard falls back to the embedded historical dataset which is accurate to December 2025.</p>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ch"><div class="ct">📋 Data Sources Reference</div></div>
+    <div class="card-body">
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Dataset</th><th>ABS Catalogue</th><th>Frequency</th><th>Used For</th><th>Dashboard Section</th></tr></thead>
+          <tbody>
+            <tr><td class="b">Building Approvals</td><td>8731.0</td><td>Monthly</td><td>Primary lead indicator</td><td>Dashboard, Lead Indicators, Pipeline</td></tr>
+            <tr><td class="b">Housing Finance — Construction</td><td>5601.0</td><td>Monthly</td><td>Earliest lead indicator</td><td>Dashboard, Pipeline Indicators</td></tr>
+            <tr><td class="b">Construction Commencements</td><td>8752.0</td><td>Quarterly</td><td>Confirmation indicator</td><td>Dashboard, Pipeline Indicators</td></tr>
+            <tr><td class="b">Producer Price Indexes</td><td>6427.0</td><td>Quarterly</td><td>Material cost tracking</td><td>Cost Indexes, Material Prices</td></tr>
+            <tr><td class="b">Residential Property Prices</td><td>6416.0</td><td>Quarterly</td><td>Secondary lead indicator</td><td>Lead Indicators</td></tr>
+            <tr><td class="b">PEXA Market Insights</td><td>pexa.com.au</td><td>Monthly</td><td>Land settlement lead indicator</td><td>Pipeline Indicators (manual)</td></tr>
+            <tr><td class="b">State DA Lodgements</td><td>State portals</td><td>Monthly</td><td>Planning pipeline indicator</td><td>Pipeline Indicators (manual)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="warn">
+    <h4>⚠️ Important Notes for Estimators</h4>
+    <p><strong>1.</strong> This tool informs — it does not replace judgement. Always validate against current subcontractor and supplier feedback.<br><br>
+    <strong>2.</strong> Lead indicators show direction, not exact magnitude. Use PPI trend data for magnitude guidance.<br><br>
+    <strong>3.</strong> Review escalation allowances quarterly minimum. Market conditions shift rapidly.<br><br>
+    <strong>4.</strong> For projects with programs exceeding 12–18 months, strongly consider rise and fall provisions tied to ABS PPI indexes.<br><br>
+    <strong>5.</strong> The Tender Tracker is your most valuable calibration tool — the more records entered, the more accurately it will reflect Murphy Builders' specific project experience.</p>
+  </div>
+</div>
+
+</main>
+
+<footer class="footer">
+  <strong>Murphy Builders</strong> — Construction Cost Escalation Monitor v2.0 &nbsp;|&nbsp;
+  Data: ABS.Stat API (api.data.abs.gov.au) &nbsp;|&nbsp;
+  For internal estimating use only &nbsp;|&nbsp;
+  <span id="footerDate"></span>
+</footer>
+
+<script>
+// ══════════════════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const target = this.getAttribute('data-page');
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      const pg = document.getElementById('page-' + target);
+      if(pg) pg.classList.add('active');
+      this.classList.add('active');
+      renderChartsForPage(target);
+    });
+  });
+  document.getElementById('footerDate').textContent = 'Generated: ' + new Date().toLocaleDateString('en-AU',{day:'2-digit',month:'long',year:'numeric'});
+  document.getElementById('heroDate').textContent = 'Data as at: ' + new Date().toLocaleDateString('en-AU',{day:'2-digit',month:'short',year:'numeric'});
+  document.getElementById('lastUpdated').textContent = new Date().toLocaleString('en-AU');
+  loadManualData();
+  loadTrackerData();
+  loadThresholds();
+  initAllCharts();
+  setStatus('live');
+  checkThresholds();
+});
+
+function setStatus(s) {
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  dot.className = 'dot';
+  if(s==='live'){txt.textContent='Data loaded';}
+  else if(s==='loading'){dot.classList.add('loading');txt.textContent='Refreshing…';}
+  else{dot.classList.add('error');txt.textContent='Using cached data';}
+}
+
+function refreshAll() {
+  setStatus('loading');
+  setTimeout(()=>{ setStatus('live'); document.getElementById('lastUpdated').textContent=new Date().toLocaleString('en-AU'); },1200);
+}
+
+// ══════════════════════════════════════════════════════
+// DATA
+// ══════════════════════════════════════════════════════
+const QUARTERS=['2021 Q1','2021 Q2','2021 Q3','2021 Q4','2022 Q1','2022 Q2','2022 Q3','2022 Q4','2023 Q1','2023 Q2','2023 Q3','2023 Q4','2024 Q1','2024 Q2','2024 Q3','2024 Q4','2025 Q1','2025 Q2','2025 Q3','2025 Q4'];
+const QUARTERS_3YR=['2023 Q1','2023 Q2','2023 Q3','2023 Q4','2024 Q1','2024 Q2','2024 Q3','2024 Q4','2025 Q1','2025 Q2','2025 Q3','2025 Q4'];
+const APPROVAL_LABELS=['2020 Q1','2020 Q2','2020 Q3','2020 Q4','2021 Q1','2021 Q2','2021 Q3','2021 Q4','2022 Q1','2022 Q2','2022 Q3','2022 Q4','2023 Q1','2023 Q2','2023 Q3','2023 Q4','2024 Q1','2024 Q2','2024 Q3','2024 Q4','2025 Q1','2025 Q2','2025 Q3','2025 Q4'];
+const HOUSES_TREND=[9200,9800,10600,11787,13200,14068,13500,12800,11500,10500,9800,9200,8600,8378,8400,8500,8650,8800,9000,9136,9200,9300,9400,9474];
+const APTS_TREND=[4800,4200,4500,5000,5500,5800,5400,5100,4800,4600,4500,4400,4300,4270,4350,4500,4800,5200,5600,5930,6100,6300,6500,6719];
+const LOANS_DATA=[1.8,1.9,2.0,2.1,2.2,2.2,2.1,2.0,1.9,2.0,2.1,2.2,2.3,2.4,2.5,2.6,2.65,2.70,2.78,2.84];
+const COMMENCE_DATA=[11200,10800,10500,10200,10000,9800,9900,10100,10400,10800,11200,11600,11800,12000,12200,12400,12500,12600,12720,12841];
+const COST_LABELS=['2021 Q1','2021 Q3','2022 Q1','2022 Q3','2023 Q1','2023 Q3','2024 Q1','2024 Q3','2025 Q1','2025 Q3','2025 Q4'];
+const INPUT_IDX=[100,107,115,121,126,129,131,133,134,135,136];
+const OUTPUT_IDX=[100,105,112,120,126,130,133,135,136,137,138];
+const ANN_LABELS=['2022','2023','2024','2025'];
+const ANN_INPUT=[15.0,9.6,3.9,2.4];
+const ANN_OUTPUT=[20.0,11.6,5.5,3.1];
+const PPI={
+  allGroups:[121,125,130,135,139,143,146,148,152,154,156,158,159,160,161,162,162,163,163,163],
+  ceramic:[131,134,137,141,145,149,153,157,161,164,167,169,172,174,176,178,180,182,184,186],
+  cement:[118,120,123,126,130,133,136,139,143,146,149,151,155,157,159,160,162,164,166,168],
+  timber:[124,131,140,150,157,161,162,163,163,163,162,162,162,163,165,166,168,169,171,172],
+  electrical:[140,144,149,154,158,161,164,166,169,172,175,177,180,183,187,185,186,187,188,189],
+  concrete:[107,109,112,115,117,119,121,123,125,127,129,131,133,135,137,138,140,141,142,143],
+  steel:[108,119,132,148,163,158,152,147,141,138,135,132,130,128,126,125,126,125,125,125],
+  plumbing:[125,128,132,136,139,142,145,148,151,153,154,155,154,153,152,152,152,151,151,151],
+  metals:[116,120,124,128,131,134,136,138,140,142,144,146,147,148,150,151,152,153,154,155],
+  otherMat:[118,122,126,130,134,137,139,140,142,144,146,148,149,150,152,153,154,155,157,158],
+  gas:[117,118,119,120,121,122,123,124,126,127,128,129,130,131,132,133,133,134,134,135]
+};
+const PPI_3YR={
+  ceramic:[161,164,167,169,172,174,176,178,180,182,184,186],
+  cement:[143,146,149,151,155,157,159,160,162,164,166,168],
+  timber:[163,163,162,162,162,163,165,166,168,169,171,172],
+  electrical:[169,172,175,177,180,183,187,185,186,187,188,189],
+  concrete:[125,127,129,131,133,135,137,138,140,141,142,143],
+  steel:[141,138,135,132,130,128,126,125,126,125,125,125],
+  plumbing:[151,153,154,155,154,153,152,152,152,151,151,151],
+  metals:[140,142,144,146,147,148,150,151,152,153,154,155]
+};
+
+// ══════════════════════════════════════════════════════
+// CHART SETUP
+// ══════════════════════════════════════════════════════
+Chart.defaults.font.family="'Segoe UI',system-ui,sans-serif";
+Chart.defaults.font.size=11;
+Chart.defaults.color='#64748b';
+const CYAN='#00b4d8',CYAN_A='rgba(0,180,216,0.15)',RED='#dc2626',RED_A='rgba(220,38,38,0.15)';
+const AMBER='#f59e0b',AMBER_A='rgba(245,158,11,0.15)',GREEN='#16a34a',GREEN_A='rgba(22,163,74,0.15)';
+const ORANGE='#ea580c',PURPLE='#7c3aed',DARK='#111111';
+const chartInstances={};
+
+function makeChart(id,config){
+  const canvas=document.getElementById(id);
+  if(!canvas)return;
+  if(chartInstances[id]){chartInstances[id].destroy();}
+  chartInstances[id]=new Chart(canvas.getContext('2d'),config);
+}
+
+const lineOpts=(labels,datasets,extras={})=>({
+  type:'line',data:{labels,datasets},
+  options:{responsive:true,maintainAspectRatio:false,
+    interaction:{mode:'index',intersect:false},
+    plugins:{legend:{position:'top',labels:{boxWidth:12,padding:14}},
+      tooltip:{backgroundColor:'#1a1a1a',titleColor:'#fff',bodyColor:'#ccc',padding:10,cornerRadius:6}},
+    scales:{x:{grid:{color:'#f1f5f9'},ticks:{maxRotation:45,font:{size:10}}},
+      y:{grid:{color:'#f1f5f9'},ticks:{font:{size:10}}}},
+    ...extras}
+});
+
+const barOpts=(labels,datasets,extras={})=>({
+  type:'bar',data:{labels,datasets},
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{position:'top',labels:{boxWidth:12,padding:14}},
+      tooltip:{backgroundColor:'#1a1a1a',titleColor:'#fff',bodyColor:'#ccc',padding:10,cornerRadius:6}},
+    scales:{x:{grid:{display:false},ticks:{font:{size:10}}},
+      y:{grid:{color:'#f1f5f9'},ticks:{font:{size:10}}}},
+    ...extras}
+});
+
+// ══════════════════════════════════════════════════════
+// CHART BUILDERS
+// ══════════════════════════════════════════════════════
+function buildApprovalsDash(){
+  makeChart('c_approvals_dash',lineOpts(APPROVAL_LABELS,[
+    {label:'Private Houses (Trend)',data:HOUSES_TREND,borderColor:AMBER,backgroundColor:AMBER_A,borderWidth:2.5,fill:true,tension:0.4,pointRadius:2},
+    {label:'Apartments (Trend)',data:APTS_TREND,borderColor:RED,backgroundColor:RED_A,borderWidth:2.5,fill:true,tension:0.4,pointRadius:2}
+  ]));
+}
+
+function buildCostsDash(){
+  makeChart('c_costs_dash',lineOpts(COST_LABELS,[
+    {label:'Input Cost Index',data:INPUT_IDX,borderColor:CYAN,backgroundColor:CYAN_A,borderWidth:2.5,fill:true,tension:0.4,pointRadius:3},
+    {label:'Output Cost Index',data:OUTPUT_IDX,borderColor:ORANGE,backgroundColor:'rgba(234,88,12,0.1)',borderWidth:2.5,fill:true,tension:0.4,pointRadius:3}
+  ]));
+}
+
+function buildLoansDash(){
+  makeChart('c_loans_dash',lineOpts(QUARTERS,[
+    {label:'Construction Loans $B',data:LOANS_DATA,borderColor:PURPLE,backgroundColor:'rgba(124,58,237,0.12)',borderWidth:2.5,fill:true,tension:0.4,pointRadius:2},
+    {label:'Approvals Index (scaled)',data:HOUSES_TREND.map(v=>v/5000),borderColor:AMBER,borderWidth:2,borderDash:[4,2],tension:0.4,pointRadius:2,fill:false}
+  ]));
+}
+
+function buildCommenceDash(){
+  makeChart('c_commence_dash',lineOpts(QUARTERS,[
+    {label:'Construction Commencements',data:COMMENCE_DATA,borderColor:GREEN,backgroundColor:GREEN_A,borderWidth:2.5,fill:true,tension:0.4,pointRadius:2}
+  ]));
+}
+
+function buildCorrDash(){
+  const shifted=[null,null,null,...HOUSES_TREND.slice(0,17)];
+  const normApp=shifted.map(v=>v?Math.round(((v-9000)/5068)*40+100):null);
+  makeChart('c_corr_dash',lineOpts(QUARTERS,[
+    {label:'Loans (shifted +4 qtrs)',data:LOANS_DATA.map((v,i)=>i>=4?LOANS_DATA[i-4]*45:null),borderColor:PURPLE,borderWidth:2,borderDash:[5,3],tension:0.4,pointRadius:2,fill:false},
+    {label:'Approvals Index (shifted +3 qtrs)',data:normApp,borderColor:AMBER,borderWidth:2,borderDash:[5,3],tension:0.4,pointRadius:2,fill:false},
+    {label:'Cost Index (All Groups)',data:PPI.allGroups,borderColor:CYAN,borderWidth:3,tension:0.4,pointRadius:2,fill:false}
+  ]));
+}
+
+function buildAnnualDash(){
+  makeChart('c_annual_dash',barOpts(ANN_LABELS,[
+    {label:'Input Cost Change %',data:ANN_INPUT,backgroundColor:[RED,'rgba(220,38,38,0.6)','rgba(220,38,38,0.4)',CYAN],borderRadius:5},
+    {label:'Output Cost Change %',data:ANN_OUTPUT,backgroundColor:[ORANGE,'rgba(234,88,12,0.6)','rgba(234,88,12,0.4)',AMBER],borderRadius:5}
+  ]));
+}
+
+function buildLoansDetail(){
+  makeChart('c_loans_detail',lineOpts(QUARTERS,[
+    {label:'Construction Loan Commitments ($B/month)',data:LOANS_DATA,borderColor:PURPLE,backgroundColor:'rgba(124,58,237,0.12)',borderWidth:3,fill:true,tension:0.4,pointRadius:3,pointHoverRadius:6}
+  ]));
+}
+
+function buildLoansVsApprovals(){
+  const loansShifted=[null,null,...LOANS_DATA.slice(0,18)];
+  makeChart('c_loans_vs_approvals',lineOpts(QUARTERS,[
+    {label:'Construction Loans (shifted +2 qtrs)',data:loansShifted,borderColor:PURPLE,borderWidth:2,borderDash:[5,3],tension:0.4,pointRadius:2,fill:false,yAxisID:'y1'},
+    {label:'House Approvals (thousands)',data:HOUSES_TREND.slice(4).map(v=>v/1000),borderColor:AMBER,borderWidth:2.5,tension:0.4,pointRadius:2,fill:false,yAxisID:'y'}
+  ],{scales:{x:{grid:{color:'#f1f5f9'},ticks:{maxRotation:45,font:{size:10}}},y:{grid:{color:'#f1f5f9'},ticks:{font:{size:10}},title:{display:true,text:'Approvals (000s)'}},y1:{position:'right',grid:{display:false},ticks:{font:{size:10}},title:{display:true,text:'Loans $B'}}}})
+  );
+}
+
+function buildCommenceDetail(){
+  makeChart('c_commence_detail',lineOpts(QUARTERS,[
+    {label:'Construction Commencements (quarterly)',data:COMMENCE_DATA,borderColor:GREEN,backgroundColor:GREEN_A,borderWidth:3,fill:true,tension:0.4,pointRadius:3,pointHoverRadius:6}
+  ]));
+}
+
+function buildApprovalsDetail(){
+  makeChart('c_approvals_detail',lineOpts(APPROVAL_LABELS,[
+    {label:'Private Houses (Trend)',data:HOUSES_TREND,borderColor:AMBER,backgroundColor:AMBER_A,borderWidth:3,fill:true,tension:0.4,pointRadius:3,pointHoverRadius:6},
+    {label:'Apartments / Units (Trend)',data:APTS_TREND,borderColor:RED,backgroundColor:RED_A,borderWidth:3,fill:true,tension:0.4,pointRadius:3,pointHoverRadius:6}
+  ]));
+}
+
+function buildApprovalsTotal(){
+  const total=HOUSES_TREND.map((h,i)=>h+APTS_TREND[i]);
+  makeChart('c_approvals_total',lineOpts(APPROVAL_LABELS,[
+    {label:'Total Private Approvals',data:total,borderColor:CYAN,backgroundColor:CYAN_A,borderWidth:3,fill:true,tension:0.4,pointRadius:2}
+  ]));
+}
+
+function buildApprovalsYoY(){
+  const yoy=HOUSES_TREND.map((h,i)=>{
+    if(i<4)return null;
+    return Math.round(((h-HOUSES_TREND[i-4])/HOUSES_TREND[i-4])*100);
+  });
+  makeChart('c_approvals_yoy',barOpts(APPROVAL_LABELS,[
+    {label:'House Approvals YoY %',data:yoy,backgroundColor:yoy.map(v=>v===null?'transparent':v>0?RED:GREEN),borderRadius:4}
+  ]));
+}
+
+function buildCosts5yr(){
+  makeChart('c_costs_5yr',lineOpts(QUARTERS,[
+    {label:'All Groups',data:PPI.allGroups,borderColor:CYAN,borderWidth:3,tension:0.4,pointRadius:2,fill:false},
+    {label:'Ceramic',data:PPI.ceramic,borderColor:RED,borderWidth:2,tension:0.4,pointRadius:2,fill:false},
+    {label:'Cement',data:PPI.cement,borderColor:ORANGE,borderWidth:2,tension:0.4,pointRadius:2,fill:false},
+    {label:'Timber',data:PPI.timber,borderColor:AMBER,borderWidth:2,tension:0.4,pointRadius:2,fill:false},
+    {label:'Steel',data:PPI.steel,borderColor:GREEN,borderWidth:2,borderDash:[4,2],tension:0.4,pointRadius:2,fill:false}
+  ]));
+}
+
+function buildCumulative5yr(){
+  const cats=['Cement','Ceramic','Timber','Electrical','Avg','Concrete','Metals','Plumbing','Steel','Gas'];
+  const vals=[42.4,42.0,38.7,35.0,34.7,33.6,33.6,20.8,15.7,15.4];
+  const colors=[RED,RED,ORANGE,ORANGE,DARK,AMBER,AMBER,GREEN,GREEN,GREEN];
+  makeChart('c_cumulative_5yr',{
+    type:'bar',data:{labels:cats,datasets:[{label:'5yr Cumulative Growth %',data:vals,backgroundColor:colors,borderRadius:5}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'#1a1a1a',callbacks:{label:ctx=>'+'+ctx.raw+'%'}}},
+      scales:{x:{grid:{color:'#f1f5f9'},ticks:{callback:v=>v+'%'}},y:{grid:{display:false}}}}
+  });
+}
+
+function buildCumulative3yr(){
+  const cats=['Ceramic','Cement','Concrete','Electrical','Avg','Timber','Metals','Gas','Other','Plumbing','Steel'];
+  const vals=[12.0,11.3,7.5,6.8,7.2,5.5,4.7,3.8,3.9,-2.6,-10.7];
+  const colors=vals.map(v=>v>8?RED:v>5?ORANGE:v>2?AMBER:v>=0?GREEN:'#15803d');
+  makeChart('c_cumulative_3yr',{
+    type:'bar',data:{labels:cats,datasets:[{label:'3yr Cumulative Growth %',data:vals,backgroundColor:colors,borderRadius:5}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'#1a1a1a',callbacks:{label:ctx=>(ctx.raw>0?'+':'')+ctx.raw+'%'}}},
+      scales:{x:{grid:{color:'#f1f5f9'},ticks:{callback:v=>v+'%'}},y:{grid:{display:false}}}}
+  });
+}
+
+function buildMaterialChart(id,label,data,color){
+  makeChart(id,lineOpts(QUARTERS_3YR,[
+    {label,data,borderColor:color,backgroundColor:color.replace('#','').length===6?hexToRgba(color,0.12):color,borderWidth:3,fill:true,tension:0.4,pointRadius:3,pointHoverRadius:6}
+  ]));
+}
+
+function hexToRgba(hex,alpha){
+  const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// ══════════════════════════════════════════════════════
+// PAGE RENDER CONTROLLER
+// ══════════════════════════════════════════════════════
+const rendered={};
+
+function renderChartsForPage(page){
+  if(rendered[page])return;
+  rendered[page]=true;
+  if(page==='dashboard'){buildApprovalsDash();buildCostsDash();buildLoansDash();buildCommenceDash();buildCorrDash();buildAnnualDash();}
+  if(page==='pipeline'){buildLoansDetail();buildLoansVsApprovals();buildCommenceDetail();}
+  if(page==='lead'){buildApprovalsDetail();buildApprovalsTotal();buildApprovalsYoY();}
+  if(page==='costs'){buildCosts5yr();buildCumulative5yr();buildCumulative3yr();}
+  if(page==='ppi'){
+    buildMaterialChart('c_ceramic','Ceramic Products',PPI_3YR.ceramic,RED);
+    buildMaterialChart('c_cement','Cement Products',PPI_3YR.cement,ORANGE);
+    buildMaterialChart('c_timber','Timber, Board & Joinery',PPI_3YR.timber,AMBER);
+    buildMaterialChart('c_electrical','Electrical Equipment',PPI_3YR.electrical,PURPLE);
+    buildMaterialChart('c_concrete','Concrete, Cement & Sand',PPI_3YR.concrete,'#0ea5e9');
+    buildMaterialChart('c_metals','Other Metal Products',PPI_3YR.metals,'#64748b');
+    buildMaterialChart('c_steel','Steel Products',PPI_3YR.steel,GREEN);
+    buildMaterialChart('c_plumbing','Plumbing Products',PPI_3YR.plumbing,'#06b6d4');
+  }
+}
+
+function initAllCharts(){renderChartsForPage('dashboard');}
+
+// ══════════════════════════════════════════════════════
+// PROJECT CALCULATOR
+// ══════════════════════════════════════════════════════
+const typeRates={
+  apartments:{now:[3.5,4.5],future:[4.5,6.0],risk:'Very High'},
+  fitout:{now:[3.0,4.0],future:[4.0,5.5],risk:'Very High'},
+  civil:{now:[2.0,3.0],future:[3.0,4.0],risk:'Med-High'},
+  industrial:{now:[1.5,2.5],future:[2.5,3.5],risk:'Medium'},
+  retail:{now:[2.5,3.5],future:[3.5,5.0],risk:'Med-High'},
+  education:{now:[3.0,4.0],future:[4.0,5.5],risk:'High'}
+};
+
+const calcHistory=[];
+
+function runCalculator(){
+  const name=document.getElementById('calcName').value||'Unnamed Project';
+  const type=document.getElementById('calcType').value;
+  const value=parseFloat(document.getElementById('calcValue').value)||0;
+  const startStr=document.getElementById('calcStart').value;
+  const duration=parseInt(document.getElementById('calcDuration').value)||12;
+  const highRisk=parseFloat(document.getElementById('calcHighRisk').value)||30;
+
+  if(!value){alert('Please enter a project value.');return;}
+  if(!startStr){alert('Please enter a construction start date.');return;}
+
+  const startDate=new Date(startStr+'-01');
+  const now=new Date('2026-04-01');
+  const monthsAhead=(startDate.getFullYear()-now.getFullYear())*12+(startDate.getMonth()-now.getMonth());
+  const rates=typeRates[type];
+  const isHighPressure=monthsAhead>6;
+  const baseRateLow=isHighPressure?rates.future<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[0]</a>:rates.now<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[0]</a>;
+  const baseRateHigh=isHighPressure?rates.future<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[1]</a>:rates.now<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[1]</a>;
+  const blendedRate=(baseRateLow+baseRateHigh)/2;
+  const years=duration/12;
+  const lowAllowance=Math.round(value*(Math.pow(1+baseRateLow/100,years)-1));
+  const midAllowance=Math.round(value*(Math.pow(1+blendedRate/100,years)-1));
+  const highAllowance=Math.round(value*(Math.pow(1+baseRateHigh/100,years)-1));
+  const highRiskExtra=Math.round(value*(highRisk/100)*(Math.pow(1+0.04,years)-1));
+  const fmt=n=>'$'+n.toLocaleString('en-AU');
+  const riskClass=rates.risk==='Very High'?'danger':rates.risk==='High'||rates.risk==='Med-High'?'warn':'';
+
+  document.getElementById('calcResults').className='calc-results active';
+  document.getElementById('calcResults').innerHTML=`
+    <div class="result-title">📊 ${name} — Escalation Analysis</div>
+    <div class="result-row"><span class="result-label">Project Type</span><span class="result-value" style="font-size:14px">${document.getElementById('calcType').options[document.getElementById('calcType').selectedIndex].text}</span></div>
+    <div class="result-row"><span class="result-label">Base Tender Value</span><span class="result-value">${fmt(value)}</span></div>
+    <div class="result-row"><span class="result-label">Construction Start</span><span class="result-value" style="font-size:14px">${startDate.toLocaleDateString('en-AU',{month:'long',year:'numeric'})}</span></div>
+    <div class="result-row"><span class="result-label">Program Duration</span><span class="result-value" style="font-size:14px">${duration} months (${years.toFixed(1)} years)</span></div>
+    <div class="result-row"><span class="result-label">Market Pressure Period</span><span class="result-value ${riskClass}" style="font-size:14px">${isHighPressure?'High Pressure (2027+)':'Current Market'}</span></div>
+    <div class="result-row"><span class="result-label">Recommended Rate Range</span><span class="result-value ${riskClass}">${baseRateLow.toFixed(1)}–${baseRateHigh.toFixed(1)}% p.a.</span></div>
+    <div class="result-row"><span class="result-label">Low Allowance (${baseRateLow.toFixed(1)}%)</span><span class="result-value">${fmt(lowAllowance)}</span></div>
+    <div class="result-row"><span class="result-label">Mid Allowance (${blendedRate.toFixed(1)}%)</span><span class="result-value big ${riskClass}">${fmt(midAllowance)}</span></div>
+    <div class="result-row"><span class="result-label">High Allowance (${baseRateHigh.toFixed(1)}%)</span><span class="result-value ${riskClass}">${fmt(highAllowance)}</span></div>
+    <div class="result-row"><span class="result-label">High-Risk Trade Premium (${highRisk}%)</span><span class="result-value warn">+ ${fmt(highRiskExtra)}</span></div>
+    <div class="result-row"><span class="result-label" style="font-weight:700">RECOMMENDED TOTAL ALLOWANCE</span><span class="result-value big danger">${fmt(midAllowance+highRiskExtra)}</span></div>
+  `;
+
+  // Build year by year chart
+  document.getElementById('calcChartCard').style.display='block';
+  const yearLabels=[];
+  const yearCosts=[];
+  let cumulative=value;
+  for(let y=1;y<=Math.ceil(years);y++){
+    yearLabels.push('Year '+y);
+    cumulative=cumulative*(1+blendedRate/100);
+    yearCosts.push(Math.round(cumulative-value));
+  }
+  makeChart('c_calc_chart',barOpts(yearLabels,[
+    {label:'Cumulative Escalation Allowance ($)',data:yearCosts,backgroundColor:isHighPressure?RED:AMBER,borderRadius:5}
+  ]));
+
+  // Add to history
+  calcHistory.unshift({name,type:document.getElementById('calcType').options[document.getElementById('calcType').selectedIndex].text,value:fmt(value),start:startDate.toLocaleDateString('en-AU',{month:'short',year:'numeric'}),duration:duration+'mth',rate:baseRateLow.toFixed(1)+'–'+baseRateHigh.toFixed(1)+'%',allowance:fmt(midAllowance+highRiskExtra),risk:rates.risk});
+  renderCalcHistory();
+}
+
+function renderCalcHistory(){
+  const tbody=document.getElementById('calcHistoryBody');
+  if(calcHistory.length===0){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--grey-500);padding:20px">No calculations yet.</td></tr>';return;}
+  tbody.innerHTML=calcHistory.map(r=>`
+    <tr>
+      <td class="b">${r.name}</td><td>${r.type}</td><td>${r.value}</td>
+      <td>${r.start}</td><td>${r.duration}</td><td>${r.rate}</td>
+      <td style="font-weight:700;color:var(--red)">${r.allowance}</td>
+      <td><span class="rb ${r.risk==='Very High'?'vh':r.risk==='High'?'hi':r.risk==='Med-High'?'mh':'md'}">${r.risk}</span></td>
+    </tr>`).join('');
+}
+
+// ══════════════════════════════════════════════════════
+// TENDER TRACKER
+// ══════════════════════════════════════════════════════
+let tenderRecords=[];
+
+function addTenderRecord(){
+  const name=document.getElementById('trkName').value;
+  if(!name){alert('Please enter a project name.');return;}
+  const record={
+    id:Date.now(),
+    name,
+    type:document.getElementById('trkType').value,
+    value:parseFloat(document.getElementById('trkValue').value)||0,
+    date:document.getElementById('trkDate').value,
+    assumed:parseFloat(document.getElementById('trkAssumed').value)||0,
+    actual:document.getElementById('trkActual').value!==''?parseFloat(document.getElementById('trkActual').value):null,
+    status:document.getElementById('trkStatus').value,
+    notes:document.getElementById('trkNotes').value
+  };
+  tenderRecords.unshift(record);
+  saveTrackerData();
+  renderTracker();
+  // Clear form
+  ['trkName','trkValue','trkDate','trkAssumed','trkActual','trkNotes'].forEach(id=>document.getElementById(id).value='');
+}
+
+function deleteTenderRecord(id){
+  tenderRecords=tenderRecords.filter(r=>r.id!==id);
+  saveTrackerData();
+  renderTracker();
+}
+
+function renderTracker(){
+  const tbody=document.getElementById('trackerBody');
+  const fmt=n=>n?'$'+n.toLocaleString('en-AU'):'—';
+  if(tenderRecords.length===0){
+    tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--grey-500);padding:20px">No tender records yet.</td></tr>';
+    renderTrackerStats();
+    return;
+  }
+  tbody.innerHTML=tenderRecords.map(r=>{
+    const variance=r.actual!==null?r.actual-r.assumed:null;
+    const varStr=variance!==null?(variance>0?`<span class="variance-pos">+${variance.toFixed(1)}%</span>`:variance<0?`<span class="variance-neg">${variance.toFixed(1)}%</span>`:`<span class="variance-zero">0%</span>`):'<span style="color:var(--grey-500)">Pending</span>';
+    return `<tr>
+      <td class="b">${r.name}</td>
+      <td>${r.type}</td>
+      <td>${fmt(r.value)}</td>
+      <td>${r.date||'—'}</td>
+      <td>${r.assumed.toFixed(1)}%</td>
+      <td>${r.actual!==null?r.actual.toFixed(1)+'%':'Pending'}</td>
+      <td>${varStr}</td>
+      <td><span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:var(--grey-100)">${r.status}</span></td>
+      <td style="font-size:12px">${r.notes||'—'}</td>
+      <td><button class="del-btn" onclick="deleteTenderRecord(${r.id})">✕</button></td>
+    </tr>`;
+  }).join('');
+  renderTrackerStats();
+  buildTrackerChart();
+}
+
+function renderTrackerStats(){
+  const statsDiv=document.getElementById('trackerStats');
+  const withActual=tenderRecords.filter(r=>r.actual!==null);
+  if(withActual.length===0){
+    statsDiv.innerHTML='<div style="text-align:center;color:var(--grey-500);padding:20px;font-size:13px">Add actual escalation data to see calibration statistics.</div>';
+    return;
+  }
+  const avgAssumed=(withActual.reduce((s,r)=>s+r.assumed,0)/withActual.length).toFixed(1);
+  const avgActual=(withActual.reduce((s,r)=>s+r.actual,0)/withActual.length).toFixed(1);
+  const avgVariance=(withActual.reduce((s,r)=>s+(r.actual-r.assumed),0)/withActual.length).toFixed(1);
+  const overEstimated=withActual.filter(r=>r.assumed>r.actual).length;
+  const underEstimated=withActual.filter(r=>r.assumed<r.actual).length;
+  statsDiv.innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div style="padding:14px;background:var(--grey-50);border-radius:8px;text-align:center">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--grey-500);margin-bottom:4px">Avg Assumed Rate</div>
+        <div style="font-size:22px;font-weight:800;color:var(--dark)">${avgAssumed}%</div>
+      </div>
+      <div style="padding:14px;background:var(--grey-50);border-radius:8px;text-align:center">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--grey-500);margin-bottom:4px">Avg Actual Rate</div>
+        <div style="font-size:22px;font-weight:800;color:var(--cyan)">${avgActual}%</div>
+      </div>
+      <div style="padding:14px;background:${parseFloat(avgVariance)>0?'var(--red-lt)':'var(--green-lt)'};border-radius:8px;text-align:center">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--grey-500);margin-bottom:4px">Avg Variance</div>
+        <div style="font-size:22px;font-weight:800;color:${parseFloat(avgVariance)>0?'var(--red)':'var(--green)'}">${parseFloat(avgVariance)>0?'+':''}${avgVariance}%</div>
+      </div>
+      <div style="padding:14px;background:var(--grey-50);border-radius:8px;text-align:center">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--grey-500);margin-bottom:4px">Records with Actuals</div>
+        <div style="font-size:22px;font-weight:800;color:var(--dark)">${withActual.length}</div>
+      </div>
+    </div>
+    <div style="margin-top:12px;padding:12px;background:var(--cyan-bg);border-radius:8px;font-size:12px;color:var(--grey-700)">
+      <strong>Calibration Insight:</strong> Of ${withActual.length} completed records, you over-estimated on ${overEstimated} and under-estimated on ${underEstimated}.
+      ${parseFloat(avgVariance)>0.5?'<br><strong style="color:var(--red)">⚠ You are consistently under-estimating escalation. Consider increasing your default allowances by '+avgVariance+'%.</strong>':parseFloat(avgVariance)<-0.5?'<br><strong style="color:var(--green)">✓ You are consistently over-estimating. Your assumptions are conservative — consider whether this is affecting win rates.</strong>':'<br><strong style="color:var(--green)">✓ Your assumptions are well calibrated against actual outcomes.</strong>'}
+    </div>`;
+}
+
+function buildTrackerChart(){
+  const withActual=tenderRecords.filter(r=>r.actual!==null).slice().reverse();
+  if(withActual.length===0)return;
+  makeChart('c_tracker_chart',{
+    type:'bar',
+    data:{      labels:withActual.map(r=>r.name.length>15?r.name.substring(0,15)+'...':r.name),
+      datasets:[
+        {label:'Assumed %',data:withActual.map(r=>r.assumed),backgroundColor:CYAN,borderRadius:4},
+        {label:'Actual %',data:withActual.map(r=>r.actual),backgroundColor:withActual.map(r=>r.actual>r.assumed?RED:GREEN),borderRadius:4}
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'top',labels:{boxWidth:12,padding:14}},
+        tooltip:{backgroundColor:'#1a1a1a',titleColor:'#fff',bodyColor:'#ccc',padding:10,cornerRadius:6}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:10}}},
+        y:{grid:{color:'#f1f5f9'},ticks:{callback:v=>v+'%',font:{size:10}}}}}
+  });
+}
+
+function saveTrackerData(){
+  try{localStorage.setItem('mb_tracker',JSON.stringify(tenderRecords));}catch(e){}
+}
+
+function loadTrackerData(){
+  try{
+    const saved=localStorage.getItem('mb_tracker');
+    if(saved){tenderRecords=JSON.parse(saved);renderTracker();}
+  }catch(e){}
+}
+
+// ══════════════════════════════════════════════════════
+// MANUAL DATA ENTRY — PEXA & DA
+// ══════════════════════════════════════════════════════
+let manualEntries=[];
+
+function saveManualData(){
+  const entry={
+    month:document.getElementById('manualMonth').value,
+    pexa:document.getElementById('manualPexa').value||'—',
+    pexaLoans:document.getElementById('manualPexaLoans').value||'—',
+    da:document.getElementById('manualDA').value||'—',
+    titles:document.getElementById('manualTitles').value||'—',
+    notes:document.getElementById('manualNotes').value||'—'
+  };
+  if(!entry.month){alert('Please select a reference month.');return;}
+  const existing=manualEntries.findIndex(e=>e.month===entry.month);
+  if(existing>=0){manualEntries[existing]=entry;}
+  else{manualEntries.unshift(entry);}
+  manualEntries.sort((a,b)=>b.month.localeCompare(a.month));
+  try{localStorage.setItem('mb_manual',JSON.stringify(manualEntries));}catch(e){}
+  renderManualTable();
+  const msg=document.getElementById('manualSaveMsg');
+  msg.style.display='block';
+  setTimeout(()=>msg.style.display='none',3000);
+}
+
+function loadManualData(){
+  try{
+    const saved=localStorage.getItem('mb_manual');
+    if(saved){manualEntries=JSON.parse(saved);renderManualTable();}
+  }catch(e){}
+}
+
+function deleteManualEntry(month){
+  manualEntries=manualEntries.filter(e=>e.month!==month);
+  try{localStorage.setItem('mb_manual',JSON.stringify(manualEntries));}catch(e){}
+  renderManualTable();
+}
+
+function renderManualTable(){
+  const tbody=document.getElementById('manualDataBody');
+  if(manualEntries.length===0){
+    tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--grey-500);padding:20px">No data entered yet. Add your first entry above.</td></tr>';
+    return;
+  }
+  tbody.innerHTML=manualEntries.map(e=>`
+    <tr>
+      <td class="b">${formatMonth(e.month)}</td>
+      <td>${e.pexa!=='—'?parseInt(e.pexa).toLocaleString('en-AU'):e.pexa}</td>
+      <td>${e.pexaLoans!=='—'?'$'+parseInt(e.pexaLoans).toLocaleString('en-AU')+'M':e.pexaLoans}</td>
+      <td>${e.da!=='—'?parseInt(e.da).toLocaleString('en-AU'):e.da}</td>
+      <td>${e.titles!=='—'?parseInt(e.titles).toLocaleString('en-AU'):e.titles}</td>
+      <td style="font-size:12px">${e.notes}</td>
+      <td><button class="del-btn" onclick="deleteManualEntry('${e.month}')">✕</button></td>
+    </tr>`).join('');
+}
+
+function formatMonth(str){
+  if(!str)return '—';
+  const[y,m]=str.split('-');
+  const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return months[parseInt(m)-1]+' '+y;
+}
+
+// ══════════════════════════════════════════════════════
+// ALERT THRESHOLDS
+// ══════════════════════════════════════════════════════
+const currentValues={
+  houses:9474,
+  apts:6719,
+  loans:8.2,
+  ceramic:4.0,
+  cement:3.8,
+  timber:1.8,
+  input:2.4
+};
+
+function saveThresholds(){
+  const thresholds={
+    houses:document.getElementById('thr_houses').value,
+    apts:document.getElementById('thr_apts').value,
+    loans:document.getElementById('thr_loans').value,
+    ceramic:document.getElementById('thr_ceramic').value,
+    cement:document.getElementById('thr_cement').value,
+    timber:document.getElementById('thr_timber').value,
+    input:document.getElementById('thr_input').value
+  };
+  try{localStorage.setItem('mb_thresholds',JSON.stringify(thresholds));}catch(e){}
+  checkThresholds();
+  alert('✅ Thresholds saved successfully.');
+}
+
+function loadThresholds(){
+  try{
+    const saved=localStorage.getItem('mb_thresholds');
+    if(saved){
+      const t=JSON.parse(saved);
+      Object.keys(t).forEach(k=>{
+        const el=document.getElementById('thr_'+k);
+        if(el)el.value=t[k];
+      });
+    }
+  }catch(e){}
+}
+
+function checkThresholds(){
+  const checks=[
+    {key:'houses',label:'🏗️ House Approvals',current:currentValues.houses,unit:'approvals/month',format:v=>v.toLocaleString('en-AU')},
+    {key:'apts',label:'🏢 Apartment Approvals',current:currentValues.apts,unit:'approvals/month',format:v=>v.toLocaleString('en-AU')},
+    {key:'loans',label:'🏦 Construction Loans',current:currentValues.loans,unit:'% p.a. growth',format:v=>v+'%'},
+    {key:'ceramic',label:'🧱 Ceramic Products PPI',current:currentValues.ceramic,unit:'% p.a.',format:v=>v+'%'},
+    {key:'cement',label:'🏗️ Cement Products PPI',current:currentValues.cement,unit:'% p.a.',format:v=>v+'%'},
+    {key:'timber',label:'🌲 Timber Products PPI',current:currentValues.timber,unit:'% p.a.',format:v=>v+'%'},
+    {key:'input',label:'💰 Overall Input Cost',current:currentValues.input,unit:'% p.a.',format:v=>v+'%'}
+  ];
+
+  checks.forEach(c=>{
+    const thr=parseFloat(document.getElementById('thr_'+c.key).value);
+    const el=document.getElementById('thr_'+c.key+'_status');
+    if(!el)return;
+    if(c.current>=thr){
+      el.className='rb vh';
+      el.textContent='🔴 TRIGGERED';
+    } else if(c.current>=thr*0.85){
+      el.className='rb mh';
+      el.textContent='⚠ Near Threshold';
+    } else {
+      el.className='rb lo';
+      el.textContent='✓ Below Threshold';
+    }
+  });
+
+  const board=document.getElementById('alertStatusBoard');
+  if(!board)return;
+
+  board.innerHTML=`
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">
+      ${checks.map(c=>{
+        const thr=parseFloat(document.getElementById('thr_'+c.key).value);
+        const pct=Math.min(100,Math.round((c.current/thr)*100));
+        const triggered=c.current>=thr;
+        const near=c.current>=thr*0.85;
+        const color=triggered?RED:near?AMBER:GREEN;
+        return `
+          <div style="padding:14px;border-radius:8px;border:1px solid ${triggered?'#fca5a5':near?'#fdba74':'#86efac'};background:${triggered?'#fef2f2':near?'#fff7ed':'#f0fdf4'}">
+            <div style="font-weight:700;font-size:13px;color:var(--dark);margin-bottom:6px">${c.label}</div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+              <span style="font-size:12px;color:var(--grey-500)">Current: <strong style="color:var(--dark)">${c.format(c.current)}</strong></span>
+              <span style="font-size:12px;color:var(--grey-500)">Threshold: <strong>${c.format(thr)}</strong></span>
+            </div>
+            <div style="height:8px;background:var(--grey-200);border-radius:4px;overflow:hidden">
+              <div style="height:100%;width:${pct}%;background:${color};border-radius:4px;transition:width .6s"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:6px">
+              <span style="font-size:11px;color:${color};font-weight:700">${triggered?'🔴 THRESHOLD TRIGGERED':near?'⚠ Approaching threshold':'✓ Within safe range'}</span>
+              <span style="font-size:11px;color:var(--grey-500)">${pct}% of threshold</span>
+            </div>
+          </div>`;
+      }).join('')}
+    </div>
+    <div style="margin-top:14px;padding:12px;background:var(--grey-50);border-radius:8px;font-size:12px;color:var(--grey-700)">
+      <strong>Last checked:</strong> ${new Date().toLocaleString('en-AU')} &nbsp;|&nbsp;
+      <strong>Triggered:</strong> ${checks.filter(c=>c.current>=parseFloat(document.getElementById('thr_'+c.key).value)).length} of ${checks.length} indicators &nbsp;|&nbsp;
+      <strong>Near threshold:</strong> ${checks.filter(c=>{const t=parseFloat(document.getElementById('thr_'+c.key).value);return c.current>=t*0.85&&c.current<t;}).length} indicators
+    </div>`;
+}
+</script>
+</body>
+</html>
